@@ -2,6 +2,22 @@
 
 All notable work on this project, newest first.
 
+## 2026-07-14 — Phase 2 complete (dashboard)
+
+### Added
+- **Login page** (`src/app/login/page.tsx`): email/password sign in + sign up with full name; handles email-confirmation flows.
+- **Middleware** (`src/middleware.ts`): Supabase session refresh + auth guard — logged-out users redirected off `/inbox`, `/contacts`, `/auto-replies`; logged-in users bounced off `/login`.
+- **Dashboard shell** (`src/app/(dashboard)/layout.tsx`, `nav.tsx`): server-side auth check, sidebar nav, sign out.
+- **Inbox** (`src/app/(dashboard)/inbox/page.tsx`): conversation list sorted by activity with status badges; chat window with in/out bubbles + delivery status; **Supabase Realtime** subscriptions (new messages append live, conversation list auto-refreshes); reply box posting to `/api/messages/send`; bot/human/closed status switcher for handoff control.
+- **Auto-replies UI** (`src/app/(dashboard)/auto-replies/page.tsx`): create, edit, enable/disable, delete keyword rules — replaces SQL editing.
+- **Contacts** (`src/app/(dashboard)/contacts/page.tsx`): searchable table, inline tag add/remove.
+- **Shared types** (`src/lib/types.ts`) and an "Open dashboard" link on the home status page.
+- **Docs**: new `09-dashboard.md`; plan + index updated.
+
+### Verified
+- `npm run build` — clean, all routes compile (`/login` static; `/inbox`, `/contacts`, `/auto-replies` dynamic; middleware active).
+- Live server test: `GET /inbox` while logged out → `307` redirect to `/login`; `/login` renders `200`.
+
 ## 2026-07-14 — Phase 0 + Phase 1 complete (initial build)
 
 ### Added
@@ -29,5 +45,5 @@ All notable work on this project, newest first.
 ---
 
 ## Upcoming (not yet built)
-- Phase 2: dashboard (login, live inbox with Realtime, contacts, auto-reply builder)
 - Phase 3: broadcasts, analytics, AI replies via Claude API
+- Deferred from Phase 2: CSV contact import, `/settings` page

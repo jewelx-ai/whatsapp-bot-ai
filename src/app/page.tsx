@@ -37,6 +37,13 @@ export default function Home() {
             full setup checklist.
           </p>
         </div>
+
+        <a
+          href="/inbox"
+          className="block text-center rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-3 font-semibold"
+        >
+          Open dashboard →
+        </a>
       </div>
     </main>
   );

@@ -12,6 +12,7 @@ Documentation index for the WhatsApp bot built with **Next.js + Supabase + Meta 
 | [06-setup-guide.md](06-setup-guide.md) | Step-by-step setup: Supabase, Meta, env vars, webhook |
 | [07-deployment.md](07-deployment.md) | Deploying to Vercel, production checklist |
 | [08-changelog.md](08-changelog.md) | Everything built, dated, phase by phase |
+| [09-dashboard.md](09-dashboard.md) | Dashboard: login, live inbox, auto-reply builder, contacts |
 
 ## Rule for this project
 

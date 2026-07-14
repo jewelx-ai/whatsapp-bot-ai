@@ -30,12 +30,13 @@ A WhatsApp bot platform: automatic keyword replies, full message history, human 
 - Human handoff ("help" → conversation status `open`, bot goes silent)
 - Manual agent reply API (auth-protected)
 
-### ⬜ Phase 2 — Dashboard
-- `/login` — Supabase Auth
-- `/inbox` — conversation list + live chat window (Supabase Realtime)
-- `/contacts` — list, tags, CSV import
-- `/auto-replies` — rule builder UI
-- `/settings` — team members, credentials
+### ✅ Phase 2 — Dashboard (DONE)
+- `/login` — Supabase Auth (sign in + sign up)
+- `/inbox` — conversation list + live chat window (Supabase Realtime), manual replies, bot/human/closed handoff
+- `/contacts` — list, search, inline tag management
+- `/auto-replies` — full rule builder UI (create/edit/toggle/delete)
+- Middleware auth guard on all dashboard routes
+- Deferred to later: CSV import, `/settings` page
 
 ### ⬜ Phase 3 — Growth
 - Broadcast template campaigns + delivery stats
