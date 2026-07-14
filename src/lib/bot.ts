@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sendText } from "@/lib/whatsapp";
+import { generateAIReply } from "@/lib/ai";
 
 const FALLBACK_REPLY =
   "Sorry, I didn't understand that. 🤖 Reply *hi* to see the menu or *help* to talk to a human.";
@@ -46,7 +47,23 @@ export async function runAutoReply(opts: {
     }
   }
 
-  const body = reply ?? FALLBACK_REPLY;
+  let body = reply;
+
+  // No keyword match → try an AI reply before the static fallback
+  if (!body) {
+    const ai = await generateAIReply(opts.conversationId);
+    if (ai) {
+      body = ai.text;
+      if (ai.handoff) {
+        await db
+          .from("conversations")
+          .update({ status: "open" })
+          .eq("id", opts.conversationId);
+      }
+    }
+  }
+
+  body = body ?? FALLBACK_REPLY;
   const sent = await sendText(opts.waPhone, body);
 
   if (sent.ok) {

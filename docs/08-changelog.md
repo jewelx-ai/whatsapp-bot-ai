@@ -2,6 +2,19 @@
 
 All notable work on this project, newest first.
 
+## 2026-07-14 — Phase 3 complete (broadcasts, analytics, AI replies)
+
+### Added
+- **Broadcasts**: `POST /api/broadcasts` (auth + Zod) sends a template message to all opted-in contacts or by tag (max 1000), records sent/failed in the `broadcasts` table; `/broadcasts` page with send form + history.
+- **Analytics** (`/analytics`): stat tiles (contacts, conversations, waiting-on-human highlight, 14-day in/out counts) + stacked per-day bar chart, computed client-side via Supabase.
+- **AI replies** (`src/lib/ai.ts`, wired into `src/lib/bot.ts`): when no keyword rule matches and `AI_REPLIES_ENABLED=true`, Claude (`claude-opus-4-8`, `@anthropic-ai/sdk`, effort low) answers from the last 20 messages with a WhatsApp-tuned system prompt; `[HANDOFF]` token escalates the conversation to human mode; any AI failure falls back to the static reply. Off by default.
+- Nav + middleware guard extended with `/broadcasts` and `/analytics`; env template gains `AI_REPLIES_ENABLED` + `ANTHROPIC_API_KEY`.
+- **Docs**: new `10-phase3-growth.md`; API reference, bot logic, plan, and index updated.
+
+### Verified
+- `npm run build` — clean; all 6 dashboard routes + 3 API routes compile.
+- Live server test: `/broadcasts` and `/analytics` redirect (307) to `/login` when logged out; `POST /api/broadcasts` without a session returns `401 {"error":"Unauthorized"}`.
+
 ## 2026-07-14 — Phase 2 complete (dashboard)
 
 ### Added

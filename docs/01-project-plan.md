@@ -38,10 +38,10 @@ A WhatsApp bot platform: automatic keyword replies, full message history, human 
 - Middleware auth guard on all dashboard routes
 - Deferred to later: CSV import, `/settings` page
 
-### ⬜ Phase 3 — Growth
-- Broadcast template campaigns + delivery stats
-- Analytics (messages/day, response rate)
-- AI replies via Claude API with human escalation
+### ✅ Phase 3 — Growth (DONE)
+- Broadcast template campaigns (`/broadcasts` + API) with sent/failed stats, audience by tag
+- Analytics (`/analytics`): stat tiles + 14-day messages-per-day chart
+- AI replies via Claude API (`claude-opus-4-8`) with `[HANDOFF]` human escalation — opt-in via env vars
 
 ## Key Constraints (Meta platform rules)
 

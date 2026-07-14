@@ -64,6 +64,25 @@ All endpoints are Next.js route handlers under `src/app/api/`.
 
 ---
 
+## `POST /api/broadcasts`
+
+**Purpose:** Send a pre-approved template message to an audience (all opted-in contacts, or by tag).
+**Auth:** Supabase Auth session required → `401`.
+
+**Request body** (Zod-validated):
+```json
+{
+  "templateName": "hello_world",
+  "languageCode": "en_US",
+  "audienceTag": "vip"
+}
+```
+`languageCode` defaults to `en_US`; omit `audienceTag` to target everyone opted in. Max 1000 recipients.
+
+**Responses:** `200 {ok, sent, failed, broadcast}` · `400` validation · `401` unauthorized · `404` no matching contacts. Result row saved to `broadcasts`.
+
+---
+
 ## Internal helpers (`src/lib/whatsapp.ts`)
 
 | Function | Use |

@@ -8,6 +8,8 @@ const links = [
   { href: "/inbox", label: "📥 Inbox" },
   { href: "/contacts", label: "👥 Contacts" },
   { href: "/auto-replies", label: "🤖 Auto-replies" },
+  { href: "/broadcasts", label: "📣 Broadcasts" },
+  { href: "/analytics", label: "📊 Analytics" },
 ];
 
 export function NavLinks() {

@@ -46,6 +46,6 @@ values ('timing', 'contains', 'We are open 9am–9pm, Mon–Sat.');
 
 Deactivate a rule with `update auto_replies set active = false where trigger_keyword = '...'`.
 
-## Future (Phase 3): AI replies
+## AI replies (Phase 3 — implemented)
 
-Planned: when no keyword matches, instead of the static fallback, call the Claude API with recent conversation history; escalate to human when the model is unsure. Will live behind a per-conversation or global toggle.
+When no keyword rule matches and AI is enabled (`AI_REPLIES_ENABLED=true` + `ANTHROPIC_API_KEY`), the bot calls Claude with the last 20 messages of the conversation and sends its answer instead of the static fallback. Claude escalates to a human by emitting a `[HANDOFF]` token (conversation → `open`). Any AI failure falls back to the static message. Full details: [10-phase3-growth.md](10-phase3-growth.md).

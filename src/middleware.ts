@@ -30,7 +30,9 @@ export async function middleware(request: NextRequest) {
   const isDashboard =
     path.startsWith("/inbox") ||
     path.startsWith("/contacts") ||
-    path.startsWith("/auto-replies");
+    path.startsWith("/auto-replies") ||
+    path.startsWith("/broadcasts") ||
+    path.startsWith("/analytics");
 
   if (!user && isDashboard) {
     const url = request.nextUrl.clone();
@@ -47,5 +49,12 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/inbox/:path*", "/contacts/:path*", "/auto-replies/:path*", "/login"],
+  matcher: [
+    "/inbox/:path*",
+    "/contacts/:path*",
+    "/auto-replies/:path*",
+    "/broadcasts/:path*",
+    "/analytics/:path*",
+    "/login",
+  ],
 };
