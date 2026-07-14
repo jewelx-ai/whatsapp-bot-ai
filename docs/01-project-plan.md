@@ -8,7 +8,7 @@ A WhatsApp bot platform: automatic keyword replies, full message history, human 
 
 | Layer | Choice | Why |
 |---|---|---|
-| Frontend + Backend | Next.js 15+ (App Router, TypeScript) | One codebase; route handlers are the backend (webhook receiver, send API) |
+| Frontend + Backend | Next.js 16 (App Router, TypeScript) | One codebase; route handlers are the backend (webhook receiver, send API) |
 | Database + Auth + Storage | Supabase (Postgres, Auth, Realtime) | Auth for dashboard login, Postgres for data, Realtime for live inbox |
 | WhatsApp connection | Meta WhatsApp Cloud API (official) | Free tier, webhook-based, no ban risk (unlike Baileys), fits serverless |
 | Styling | Tailwind CSS | Fast UI building |

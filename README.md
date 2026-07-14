@@ -4,7 +4,7 @@ WhatsApp bot with keyword auto-replies, message storage, and human handoff, buil
 
 ## Stack
 
-- **Next.js 15** (App Router, TypeScript) — frontend + API routes (webhook, send API)
+- **Next.js 16** (App Router, TypeScript) — frontend + API routes (webhook, send API)
 - **Supabase** — Postgres (contacts/conversations/messages), Auth, Realtime
 - **Meta WhatsApp Cloud API** — official WhatsApp messaging
 
@@ -86,10 +86,15 @@ Auto-reply rules live in the `auto_replies` table — add rows to add keywords (
 - Webhook always returns 200 even on processing errors — Meta retries non-200 responses and would duplicate messages.
 - `SUPABASE_SERVICE_ROLE_KEY` and `WHATSAPP_TOKEN` are server-only. Never expose them to the client.
 
-## Roadmap
+## Status
 
-- [ ] Dashboard: login, live inbox (Supabase Realtime), manual replies
-- [ ] Contacts management + tags
-- [ ] Auto-reply rule builder UI
-- [ ] Broadcast template campaigns
-- [ ] AI replies (Claude API) with human escalation
+All three build phases are complete — see [docs/](docs/README.md) for full documentation.
+
+- [x] Dashboard: login, live inbox (Supabase Realtime), manual replies
+- [x] Contacts management + tags
+- [x] Auto-reply rule builder UI
+- [x] Broadcast template campaigns
+- [x] Analytics (stat tiles + 14-day chart)
+- [x] AI replies (Claude API) with human escalation
+
+Remaining (optional, not yet built): CSV contact import, `/settings` page, per-role RLS tightening, scheduled broadcasts.
