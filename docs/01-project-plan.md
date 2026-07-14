@@ -1,0 +1,49 @@
+# 01 — Project Plan
+
+## Goal
+
+A WhatsApp bot platform: automatic keyword replies, full message history, human agent handoff, and (later) a live dashboard, broadcasts, and AI replies.
+
+## Tech Stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| Frontend + Backend | Next.js 15+ (App Router, TypeScript) | One codebase; route handlers are the backend (webhook receiver, send API) |
+| Database + Auth + Storage | Supabase (Postgres, Auth, Realtime) | Auth for dashboard login, Postgres for data, Realtime for live inbox |
+| WhatsApp connection | Meta WhatsApp Cloud API (official) | Free tier, webhook-based, no ban risk (unlike Baileys), fits serverless |
+| Styling | Tailwind CSS | Fast UI building |
+| Validation | Zod | Validate webhook payloads and API bodies |
+| Hosting | Vercel | Native Next.js, HTTPS webhooks out of the box |
+
+## Build Phases
+
+### ✅ Phase 0 — Setup (DONE)
+- Next.js scaffolded with TypeScript + Tailwind
+- Supabase + Zod installed
+- Env var structure defined (`.env.local.example`)
+
+### ✅ Phase 1 — Core bot (DONE)
+- Webhook route: Meta verification + incoming messages + signature check
+- Message storage with dedupe in Supabase
+- Send helpers (text, template, mark-as-read)
+- Keyword auto-replies from the `auto_replies` table
+- Human handoff ("help" → conversation status `open`, bot goes silent)
+- Manual agent reply API (auth-protected)
+
+### ⬜ Phase 2 — Dashboard
+- `/login` — Supabase Auth
+- `/inbox` — conversation list + live chat window (Supabase Realtime)
+- `/contacts` — list, tags, CSV import
+- `/auto-replies` — rule builder UI
+- `/settings` — team members, credentials
+
+### ⬜ Phase 3 — Growth
+- Broadcast template campaigns + delivery stats
+- Analytics (messages/day, response rate)
+- AI replies via Claude API with human escalation
+
+## Key Constraints (Meta platform rules)
+
+- **24-hour window**: free-form replies only within 24h of the user's last message; outside it, pre-approved templates only.
+- **Webhook must answer fast** (<10s) and return 200 even on internal errors, or Meta retries and duplicates messages.
+- Test number supports max **5 verified recipients**; production needs a real business number + business verification.
