@@ -3,8 +3,13 @@ import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runAutoReply } from "@/lib/bot";
 import { markAsRead } from "@/lib/whatsapp";
+import { getOrgByPhoneNumberId, orgWaCredentials } from "@/lib/org";
+import type { Organization } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+// One webhook serves every tenant: Meta includes metadata.phone_number_id in
+// each payload, which routes the event to the organization that owns it.
 
 // ---------- GET: Meta webhook verification handshake ----------
 export async function GET(req: NextRequest) {
@@ -35,16 +40,29 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const orgCache = new Map<string, Organization | null>();
+
     for (const entry of payload.entry ?? []) {
       for (const change of entry.changes ?? []) {
         const value = change.value;
-        if (!value) continue;
+        const phoneNumberId = value?.metadata?.phone_number_id;
+        if (!value || !phoneNumberId) continue;
+
+        // Route the event to its tenant
+        if (!orgCache.has(phoneNumberId)) {
+          orgCache.set(phoneNumberId, await getOrgByPhoneNumberId(phoneNumberId));
+        }
+        const org = orgCache.get(phoneNumberId);
+        if (!org) {
+          console.warn("Webhook for unknown phone_number_id:", phoneNumberId);
+          continue;
+        }
 
         for (const msg of value.messages ?? []) {
-          await handleIncomingMessage(msg, value.contacts?.[0]);
+          await handleIncomingMessage(org, msg, value.contacts?.[0]);
         }
         for (const status of value.statuses ?? []) {
-          await handleStatusUpdate(status);
+          await handleStatusUpdate(org, status);
         }
       }
     }
@@ -72,8 +90,13 @@ function verifySignature(rawBody: string, header: string | null): boolean {
   }
 }
 
-async function handleIncomingMessage(msg: WaMessage, contact?: WaContact) {
+async function handleIncomingMessage(
+  org: Organization,
+  msg: WaMessage,
+  contact?: WaContact
+) {
   const db = supabaseAdmin();
+  const creds = orgWaCredentials(org);
   const waPhone = msg.from;
   const text =
     msg.type === "text"
@@ -90,16 +113,17 @@ async function handleIncomingMessage(msg: WaMessage, contact?: WaContact) {
     .maybeSingle();
   if (existing) return;
 
-  // Upsert contact
+  // Upsert contact within this tenant
   const { data: contactRow } = await db
     .from("contacts")
     .upsert(
       {
+        org_id: org.id,
         wa_phone: waPhone,
         name: contact?.profile?.name ?? null,
         last_seen_at: new Date().toISOString(),
       },
-      { onConflict: "wa_phone" }
+      { onConflict: "org_id,wa_phone" }
     )
     .select("id")
     .single();
@@ -121,7 +145,7 @@ async function handleIncomingMessage(msg: WaMessage, contact?: WaContact) {
     conversation = (
       await db
         .from("conversations")
-        .insert({ contact_id: contactRow.id, status: "bot" })
+        .insert({ org_id: org.id, contact_id: contactRow.id, status: "bot" })
         .select("id, status")
         .single()
     ).data;
@@ -134,6 +158,7 @@ async function handleIncomingMessage(msg: WaMessage, contact?: WaContact) {
 
   // Store the incoming message
   await db.from("messages").insert({
+    org_id: org.id,
     conversation_id: conversation.id,
     direction: "in",
     type: msg.type,
@@ -142,10 +167,13 @@ async function handleIncomingMessage(msg: WaMessage, contact?: WaContact) {
     status: "received",
   });
 
-  await markAsRead(msg.id).catch(() => {});
+  await markAsRead(creds, msg.id).catch(() => {});
 
   if (text) {
     await runAutoReply({
+      orgId: org.id,
+      creds,
+      aiEnabled: org.ai_enabled,
       waPhone,
       conversationId: conversation.id,
       conversationStatus: conversation.status,
@@ -154,11 +182,12 @@ async function handleIncomingMessage(msg: WaMessage, contact?: WaContact) {
   }
 }
 
-async function handleStatusUpdate(status: WaStatus) {
+async function handleStatusUpdate(org: Organization, status: WaStatus) {
   const db = supabaseAdmin();
   await db
     .from("messages")
     .update({ status: status.status })
+    .eq("org_id", org.id)
     .eq("wa_message_id", status.id);
 }
 
@@ -180,6 +209,7 @@ type WebhookPayload = {
   entry?: {
     changes?: {
       value?: {
+        metadata?: { phone_number_id?: string };
         contacts?: WaContact[];
         messages?: WaMessage[];
         statuses?: WaStatus[];

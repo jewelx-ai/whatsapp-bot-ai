@@ -12,21 +12,16 @@ Rules:
 - Answer only from the conversation context. If you don't know something specific to the business (exact prices, stock, order status) or the user is upset or asks for a person, reply with a brief apology and include the exact token [HANDOFF] at the end.
 - Never invent facts, prices, or commitments.`;
 
-export function aiEnabled(): boolean {
-  return (
-    process.env.AI_REPLIES_ENABLED === "true" && !!process.env.ANTHROPIC_API_KEY
-  );
-}
-
 /**
  * Generate an AI reply from the last messages of a conversation.
- * Returns { text, handoff } or null if AI is disabled or the call failed
- * (callers fall back to the static reply).
+ * The per-tenant toggle (organizations.ai_enabled) is checked by the caller;
+ * this only requires the platform ANTHROPIC_API_KEY. Returns { text, handoff }
+ * or null on any failure (callers fall back to the static reply).
  */
 export async function generateAIReply(
   conversationId: string
 ): Promise<{ text: string; handoff: boolean } | null> {
-  if (!aiEnabled()) return null;
+  if (!process.env.ANTHROPIC_API_KEY) return null;
 
   const db = supabaseAdmin();
   const { data: history } = await db

@@ -2,6 +2,28 @@
 
 All notable work on this project, newest first.
 
+## 2026-07-14 — Multi-tenant SaaS conversion
+
+### Changed (breaking: schema v2 — re-run `supabase/schema.sql` on a fresh project)
+- **Tenant model**: new `organizations` table (name, per-org `wa_phone_number_id` + `wa_access_token`, `ai_enabled`, `plan`/`plan_status`); `org_id` added to contacts, conversations, messages, auto_replies, broadcasts; contacts unique per `(org_id, wa_phone)`.
+- **Tenant isolation**: RLS on every table scoped by `current_org_id()`; `create_organization()` RPC (creates org, makes caller owner, seeds default auto-replies per org).
+- **Webhook** is now shared by all tenants — routes each event by `metadata.phone_number_id` → owning org; replies with that org's token; unknown numbers skipped.
+- **Credentials**: WhatsApp token/phone-number-id moved from env vars into the org row (entered in `/settings`); platform env keeps only Supabase keys, Meta app secret, verify token, Anthropic key.
+- **AI replies**: per-workspace toggle (`organizations.ai_enabled`) replacing the global `AI_REPLIES_ENABLED` env var.
+- Send + broadcast APIs resolve the caller's org, verify resource ownership, and return `409` when WhatsApp isn't connected yet.
+
+### Added
+- `/onboarding` — create-your-workspace flow (dashboard redirects org-less users there).
+- `/settings` — workspace name, WhatsApp connection (Phone Number ID + token, connected badge), AI replies toggle, plan display.
+- `src/lib/org.ts` — tenant resolution helpers.
+- Docs: new `11-multitenancy-saas.md`; index updated.
+
+### Verified
+- Clean build (13 routes); `/settings` + `/onboarding` guarded (307 → login); webhook GET handshake still works.
+
+### Not yet built (SaaS roadmap)
+- Stripe billing, team invites, Meta Embedded Signup, role-based permissions, token encryption at rest.
+
 ## 2026-07-14 — Phase 3 complete (broadcasts, analytics, AI replies)
 
 ### Added

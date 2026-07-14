@@ -2,7 +2,7 @@
 
 ## Goal
 
-A WhatsApp bot platform: automatic keyword replies, full message history, human agent handoff, and (later) a live dashboard, broadcasts, and AI replies.
+A **multi-tenant SaaS** WhatsApp bot platform: many businesses sign up, connect their own WhatsApp number, and get keyword auto-replies, AI replies, a live team inbox with human handoff, broadcasts, and analytics — with full data isolation per tenant (see [11-multitenancy-saas.md](11-multitenancy-saas.md)).
 
 ## Tech Stack
 

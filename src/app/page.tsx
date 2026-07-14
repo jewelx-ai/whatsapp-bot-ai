@@ -3,9 +3,8 @@ export default function Home() {
     supabase:
       !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
       !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    whatsapp:
-      !!process.env.WHATSAPP_TOKEN && !!process.env.WHATSAPP_PHONE_NUMBER_ID,
     verifyToken: !!process.env.WHATSAPP_VERIFY_TOKEN,
+    appSecret: !!process.env.WHATSAPP_APP_SECRET,
   };
 
   return (
@@ -23,8 +22,8 @@ export default function Home() {
             Setup status
           </h2>
           <StatusRow ok={envOk.supabase} label="Supabase keys configured" />
-          <StatusRow ok={envOk.whatsapp} label="WhatsApp token & phone number ID" />
           <StatusRow ok={envOk.verifyToken} label="Webhook verify token set" />
+          <StatusRow ok={envOk.appSecret} label="Meta app secret set" />
         </div>
 
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 text-sm text-zinc-300 space-y-2">
@@ -33,8 +32,9 @@ export default function Home() {
             POST /api/webhook
           </code>
           <p className="text-zinc-500">
-            Point Meta&apos;s webhook here after deploying. See README for the
-            full setup checklist.
+            One webhook serves every workspace — incoming messages are routed
+            by Phone Number ID. Each business connects its own WhatsApp number
+            in Settings.
           </p>
         </div>
 

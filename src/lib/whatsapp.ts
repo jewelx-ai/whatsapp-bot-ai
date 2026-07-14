@@ -1,20 +1,27 @@
 // Helpers for sending messages via the Meta WhatsApp Cloud API.
+// Multi-tenant: every call takes the organization's own credentials.
 
 const GRAPH_URL = "https://graph.facebook.com/v21.0";
 
+export type WaCredentials = {
+  phoneNumberId: string;
+  token: string;
+};
+
 type SendResult = { waMessageId: string | null; ok: boolean; error?: unknown };
 
-async function callGraph(payload: Record<string, unknown>): Promise<SendResult> {
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const token = process.env.WHATSAPP_TOKEN;
-  if (!phoneNumberId || !token) {
-    throw new Error("WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_TOKEN not configured");
+async function callGraph(
+  creds: WaCredentials,
+  payload: Record<string, unknown>
+): Promise<SendResult> {
+  if (!creds.phoneNumberId || !creds.token) {
+    return { waMessageId: null, ok: false, error: "Missing WhatsApp credentials" };
   }
 
-  const res = await fetch(`${GRAPH_URL}/${phoneNumberId}/messages`, {
+  const res = await fetch(`${GRAPH_URL}/${creds.phoneNumberId}/messages`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${creds.token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ messaging_product: "whatsapp", ...payload }),
@@ -29,8 +36,8 @@ async function callGraph(payload: Record<string, unknown>): Promise<SendResult> 
 }
 
 /** Send a plain text message (only valid within the 24h customer service window). */
-export function sendText(to: string, body: string) {
-  return callGraph({
+export function sendText(creds: WaCredentials, to: string, body: string) {
+  return callGraph(creds, {
     to,
     type: "text",
     text: { body, preview_url: false },
@@ -39,12 +46,13 @@ export function sendText(to: string, body: string) {
 
 /** Send a pre-approved template message (required outside the 24h window). */
 export function sendTemplate(
+  creds: WaCredentials,
   to: string,
   templateName: string,
   languageCode = "en_US",
   components?: unknown[]
 ) {
-  return callGraph({
+  return callGraph(creds, {
     to,
     type: "template",
     template: {
@@ -56,6 +64,6 @@ export function sendTemplate(
 }
 
 /** Mark an incoming message as read (shows blue ticks to the user). */
-export async function markAsRead(waMessageId: string) {
-  return callGraph({ status: "read", message_id: waMessageId });
+export function markAsRead(creds: WaCredentials, waMessageId: string) {
+  return callGraph(creds, { status: "read", message_id: waMessageId });
 }

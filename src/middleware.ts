@@ -32,7 +32,9 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/contacts") ||
     path.startsWith("/auto-replies") ||
     path.startsWith("/broadcasts") ||
-    path.startsWith("/analytics");
+    path.startsWith("/analytics") ||
+    path.startsWith("/settings") ||
+    path.startsWith("/onboarding");
 
   if (!user && isDashboard) {
     const url = request.nextUrl.clone();
@@ -55,6 +57,8 @@ export const config = {
     "/auto-replies/:path*",
     "/broadcasts/:path*",
     "/analytics/:path*",
+    "/settings/:path*",
+    "/onboarding",
     "/login",
   ],
 };

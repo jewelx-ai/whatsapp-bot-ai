@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sendTemplate } from "@/lib/whatsapp";
+import { getOrgForCurrentUser, orgWaCredentials } from "@/lib/org";
 
 const bodySchema = z.object({
   templateName: z.string().min(1),
@@ -10,13 +10,17 @@ const bodySchema = z.object({
   audienceTag: z.string().trim().optional(), // omit = all opted-in contacts
 });
 
-// Send a pre-approved template message to an audience (all or by tag).
-// Templates are required because broadcasts go outside the 24h window.
+// Send a pre-approved template message to this org's audience.
 export async function POST(req: NextRequest) {
-  const auth = await supabaseServer();
-  const { data: { user } } = await auth.auth.getUser();
-  if (!user) {
+  const org = await getOrgForCurrentUser();
+  if (!org) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!org.wa_phone_number_id || !org.wa_access_token) {
+    return NextResponse.json(
+      { error: "WhatsApp is not connected — add credentials in Settings" },
+      { status: 409 }
+    );
   }
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
@@ -26,7 +30,11 @@ export async function POST(req: NextRequest) {
   const { templateName, languageCode, audienceTag } = parsed.data;
 
   const db = supabaseAdmin();
-  let query = db.from("contacts").select("wa_phone").eq("opted_in", true);
+  let query = db
+    .from("contacts")
+    .select("wa_phone")
+    .eq("org_id", org.id)
+    .eq("opted_in", true);
   if (audienceTag) query = query.contains("tags", [audienceTag]);
   const { data: contacts } = await query.limit(1000);
 
@@ -34,10 +42,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No matching contacts" }, { status: 404 });
   }
 
+  const creds = orgWaCredentials(org);
   let sent = 0;
   let failed = 0;
   for (const c of contacts) {
-    const result = await sendTemplate(c.wa_phone, templateName, languageCode);
+    const result = await sendTemplate(creds, c.wa_phone, templateName, languageCode);
     if (result.ok) sent++;
     else failed++;
   }
@@ -45,6 +54,7 @@ export async function POST(req: NextRequest) {
   const { data: broadcast } = await db
     .from("broadcasts")
     .insert({
+      org_id: org.id,
       template_name: templateName,
       audience_tag: audienceTag ?? null,
       sent_count: sent,

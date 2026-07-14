@@ -13,6 +13,14 @@ export default async function DashboardLayout({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // Multi-tenant: users without a workspace go through onboarding first
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!profile?.org_id) redirect("/onboarding");
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex">
       <aside className="w-56 shrink-0 border-r border-zinc-800 p-4 flex flex-col gap-1">

@@ -10,6 +10,7 @@ const links = [
   { href: "/auto-replies", label: "🤖 Auto-replies" },
   { href: "/broadcasts", label: "📣 Broadcasts" },
   { href: "/analytics", label: "📊 Analytics" },
+  { href: "/settings", label: "⚙️ Settings" },
 ];
 
 export function NavLinks() {
