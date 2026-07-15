@@ -4,6 +4,8 @@ All notable work on this project, newest first.
 
 ## 2026-07-15 — Fixes
 
+- Added `/auth/callback` route: exchanges Supabase email-confirmation `?code=` for a session (PKCE) and redirects into the app; home page forwards stray `?code=` params there. Previously confirmation links landed on the status page logged-out.
+
 - Suppressed false-positive hydration warning on `<body>` (browser extensions inject attributes pre-hydration); scoped to the body element only.
 - Replaced boilerplate "Create Next App" metadata with real title/description.
 - Added `.claude/launch.json` for one-command dev preview.

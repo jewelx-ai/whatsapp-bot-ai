@@ -1,4 +1,14 @@
-export default function Home() {
+import { redirect } from "next/navigation";
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string }>;
+}) {
+  // Supabase email-confirmation links land on the Site URL (/) with ?code=…
+  // Hand the code to the auth callback so the user gets a session.
+  const { code } = await searchParams;
+  if (code) redirect(`/auth/callback?code=${encodeURIComponent(code)}`);
   const envOk = {
     supabase:
       !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
