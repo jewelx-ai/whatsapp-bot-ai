@@ -2,6 +2,12 @@
 
 All notable work on this project, newest first.
 
+## 2026-07-15 — Fixes
+
+- Suppressed false-positive hydration warning on `<body>` (browser extensions inject attributes pre-hydration); scoped to the body element only.
+- Replaced boilerplate "Create Next App" metadata with real title/description.
+- Added `.claude/launch.json` for one-command dev preview.
+
 ## 2026-07-14 — Multi-tenant SaaS conversion
 
 ### Changed (breaking: schema v2 — re-run `supabase/schema.sql` on a fresh project)
