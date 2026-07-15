@@ -31,6 +31,7 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/inbox") ||
     path.startsWith("/contacts") ||
     path.startsWith("/auto-replies") ||
+    path.startsWith("/knowledge") ||
     path.startsWith("/broadcasts") ||
     path.startsWith("/analytics") ||
     path.startsWith("/settings") ||
@@ -55,6 +56,7 @@ export const config = {
     "/inbox/:path*",
     "/contacts/:path*",
     "/auto-replies/:path*",
+    "/knowledge/:path*",
     "/broadcasts/:path*",
     "/analytics/:path*",
     "/settings/:path*",

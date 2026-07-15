@@ -38,6 +38,12 @@ A **multi-tenant SaaS** WhatsApp bot platform: many businesses sign up, connect 
 - Middleware auth guard on all dashboard routes
 - Deferred to later: CSV import, `/settings` page
 
+### ✅ Phase 4 — Knowledge Base + RAG + Docker (DONE — client contract scope)
+- Per-org knowledge base: PDF upload, website ingestion, pasted text
+- RAG retrieval (pgvector via Voyage embeddings, FTS fallback) feeding AI replies
+- `/knowledge` management UI
+- Docker deployment (Dockerfile + compose + docs)
+
 ### ✅ Phase 3 — Growth (DONE)
 - Broadcast template campaigns (`/broadcasts` + API) with sent/failed stats, audience by tag
 - Analytics (`/analytics`): stat tiles + 14-day messages-per-day chart

@@ -2,6 +2,23 @@
 
 All notable work on this project, newest first.
 
+## 2026-07-15 — Knowledge Base + RAG, Docker deployment (client contract scope)
+
+### Added
+- **Knowledge Base** (migration 003, also merged into schema.sql): per-org `kb_documents` + `kb_chunks` with pgvector `embedding vector(1024)`, generated FTS column, HNSW + GIN indexes, `match_kb_chunks` cosine RPC, org-scoped RLS.
+- **Ingestion** (`src/lib/kb.ts`): chunking (~1500 chars, 200 overlap, boundary-aware), optional Voyage `voyage-3.5-lite` embeddings (`VOYAGE_API_KEY`), batched inserts, error-status handling.
+- **RAG retrieval**: vector search when embeddings exist, Postgres full-text search fallback — wired into `generateAIReply` as a `<knowledge_base>` system-prompt block; prompt updated to prefer KB content and hand off when uncovered.
+- **API**: `POST /api/kb/upload` (PDF via unpdf, 20 MB cap), `POST /api/kb/url` (cheerio content extraction), `POST /api/kb/text` — all auth-required.
+- **Dashboard**: `/knowledge` page (PDF/website/text tabs, document list with status + delete); nav + middleware extended.
+- **Docker**: multi-stage `Dockerfile` (Next standalone, non-root), `docker-compose.yml`, `.dockerignore`, `output: "standalone"` in next.config; deployment doc gains a Docker section.
+- Deps: `unpdf`, `cheerio`. Env: optional `VOYAGE_API_KEY`.
+
+### Verified
+- Clean build (18 routes); `/knowledge` redirects logged-out (307); all three KB APIs return 401 without a session.
+
+### Migration note
+- Existing databases must run `supabase/migration-003-knowledge-base.sql`.
+
 ## 2026-07-15 — Fixes
 
 - Added `/auth/callback` route: exchanges Supabase email-confirmation `?code=` for a session (PKCE) and redirects into the app; home page forwards stray `?code=` params there. Previously confirmation links landed on the status page logged-out.

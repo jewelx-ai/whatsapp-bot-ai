@@ -8,6 +8,7 @@ const links = [
   { href: "/inbox", label: "📥 Inbox" },
   { href: "/contacts", label: "👥 Contacts" },
   { href: "/auto-replies", label: "🤖 Auto-replies" },
+  { href: "/knowledge", label: "📚 Knowledge" },
   { href: "/broadcasts", label: "📣 Broadcasts" },
   { href: "/analytics", label: "📊 Analytics" },
   { href: "/settings", label: "⚙️ Settings" },

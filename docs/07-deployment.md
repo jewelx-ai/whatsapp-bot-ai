@@ -1,4 +1,23 @@
-# 07 — Deployment (Vercel)
+# 07 — Deployment (Vercel or Docker)
+
+## Option A — Docker (self-hosted)
+
+The repo ships a production `Dockerfile` (multi-stage, Next.js standalone output, non-root user) and `docker-compose.yml`.
+
+```bash
+# 1. Fill .env.local with real values (see .env.local.example)
+# 2. Build & run
+docker compose up -d --build
+# App on http://localhost:3000 — put a reverse proxy (Caddy/nginx) with HTTPS
+# in front, since Meta requires an HTTPS webhook URL.
+```
+
+Notes:
+- `NEXT_PUBLIC_*` vars are baked in at **build** time (compose passes them as build args from `.env.local`); server-only secrets are read at **runtime** via `env_file`.
+- Rebuild the image after changing `NEXT_PUBLIC_*` values; runtime-only secret changes just need a container restart.
+- Health check: `GET /` returns the status page.
+
+## Option B — Vercel
 
 ## First deploy
 

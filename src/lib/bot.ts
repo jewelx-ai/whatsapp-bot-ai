@@ -55,7 +55,7 @@ export async function runAutoReply(opts: {
 
   // No keyword match → try an AI reply before the static fallback
   if (!body && opts.aiEnabled) {
-    const ai = await generateAIReply(opts.conversationId);
+    const ai = await generateAIReply(opts.conversationId, opts.orgId);
     if (ai) {
       body = ai.text;
       if (ai.handoff) {

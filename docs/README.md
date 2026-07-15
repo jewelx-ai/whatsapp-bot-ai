@@ -15,6 +15,7 @@ Documentation index for the WhatsApp bot built with **Next.js + Supabase + Meta 
 | [09-dashboard.md](09-dashboard.md) | Dashboard: login, live inbox, auto-reply builder, contacts |
 | [10-phase3-growth.md](10-phase3-growth.md) | Broadcasts, analytics, AI replies via Claude |
 | [11-multitenancy-saas.md](11-multitenancy-saas.md) | Multi-tenant SaaS: orgs, RLS isolation, webhook routing, onboarding |
+| [12-knowledge-base-rag.md](12-knowledge-base-rag.md) | Knowledge Base: PDF/URL/text ingestion, RAG retrieval, /knowledge UI |
 
 ## Rule for this project
 

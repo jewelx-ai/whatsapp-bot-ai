@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { retrieveContext } from "@/lib/kb";
 
 // AI replies: when no keyword rule matches and AI is enabled, answer with
 // Claude using recent conversation history. Escalates to a human when unsure.
@@ -9,8 +10,8 @@ const SYSTEM_PROMPT = `You are a friendly WhatsApp customer support assistant fo
 Rules:
 - Keep replies short (1-3 sentences) — this is WhatsApp, not email.
 - Be warm and helpful. Plain text only: no markdown headers or bullet lists; a WhatsApp *bold* word is fine.
-- Answer only from the conversation context. If you don't know something specific to the business (exact prices, stock, order status) or the user is upset or asks for a person, reply with a brief apology and include the exact token [HANDOFF] at the end.
-- Never invent facts, prices, or commitments.`;
+- Answer from the business knowledge base passages below when they are relevant; otherwise from the conversation. If neither covers the question (exact prices not in the knowledge base, stock, order status), or the user is upset or asks for a person, reply with a brief apology and include the exact token [HANDOFF] at the end.
+- Never invent facts, prices, or commitments. Do not mention "sources", "passages", or the knowledge base itself.`;
 
 /**
  * Generate an AI reply from the last messages of a conversation.
@@ -19,7 +20,8 @@ Rules:
  * or null on any failure (callers fall back to the static reply).
  */
 export async function generateAIReply(
-  conversationId: string
+  conversationId: string,
+  orgId: string
 ): Promise<{ text: string; handoff: boolean } | null> {
   if (!process.env.ANTHROPIC_API_KEY) return null;
 
@@ -52,13 +54,20 @@ export async function generateAIReply(
   }
   if (turns.length === 0) return null;
 
+  // RAG: pull relevant knowledge base passages for the user's latest message
+  const lastUserTurn = turns[turns.length - 1];
+  const kbContext = await retrieveContext(orgId, String(lastUserTurn.content));
+  const system = kbContext
+    ? `${SYSTEM_PROMPT}\n\n<knowledge_base>\n${kbContext}\n</knowledge_base>`
+    : SYSTEM_PROMPT;
+
   const client = new Anthropic();
   try {
     const response = await client.messages.create({
       model: "claude-opus-4-8",
       max_tokens: 1024,
       output_config: { effort: "low" },
-      system: SYSTEM_PROMPT,
+      system,
       messages: turns,
     });
 
