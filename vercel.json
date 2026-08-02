@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/worker/broadcasts",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}

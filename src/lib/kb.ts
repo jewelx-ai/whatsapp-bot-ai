@@ -70,7 +70,7 @@ async function embed(texts: string[], inputType: "document" | "query"): Promise<
 export async function ingestDocument(opts: {
   orgId: string;
   title: string;
-  sourceType: "pdf" | "url" | "text";
+  sourceType: "pdf" | "docx" | "url" | "text";
   source?: string;
   text: string;
 }): Promise<{ documentId: string; chunkCount: number }> {
@@ -95,7 +95,20 @@ export async function ingestDocument(opts: {
   if (docErr || !doc) throw new Error(docErr?.message ?? "Failed to create document");
 
   try {
-    const embeddings = embeddingsEnabled() ? await embed(chunks, "document") : null;
+    // Embedding is an enhancement, not a requirement: if Voyage is rate limited
+    // or down, store the passages anyway so full-text retrieval still works
+    // rather than losing the whole upload.
+    let embeddings: number[][] | null = null;
+    if (embeddingsEnabled()) {
+      try {
+        embeddings = await embed(chunks, "document");
+      } catch (err) {
+        console.warn(
+          "Embedding failed, storing passages for full-text search only:",
+          err instanceof Error ? err.message : err
+        );
+      }
+    }
 
     const rows = chunks.map((content, i) => ({
       org_id: opts.orgId,
@@ -119,26 +132,87 @@ export async function ingestDocument(opts: {
 
 // ---------- retrieval ----------
 
+// Words carrying no retrieval signal. Removing them keeps the OR fallback from
+// matching every passage on "do"/"you"/"what".
+const STOPWORDS = new Set([
+  "the", "and", "for", "are", "you", "your", "yours", "our", "ours", "was",
+  "were", "have", "has", "had", "what", "when", "where", "which", "who", "whom",
+  "how", "why", "can", "could", "would", "should", "will", "shall", "does",
+  "did", "doing", "with", "without", "from", "into", "about", "there", "their",
+  "they", "them", "this", "that", "these", "those", "any", "all", "some", "get",
+  "got", "give", "tell", "please", "want", "need", "know", "much", "many",
+  "hello", "hey", "thanks", "thank", "yes", "not", "but", "its", "just",
+]);
+
 /**
- * Return the most relevant KB passages for a query, formatted for inclusion
- * in the AI system prompt. Empty string when the org has no KB / no matches.
+ * Build an OR tsquery from a natural-language question. Non-alphanumerics are
+ * stripped so the input can never produce invalid tsquery syntax.
+ */
+function toOrTsQuery(query: string): string | null {
+  const terms = query
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length > 2 && !STOPWORDS.has(t));
+  const unique = [...new Set(terms)].slice(0, 10);
+  return unique.length > 0 ? unique.join(" | ") : null;
+}
+
+const MAX_CONTEXT_CHARS = 12000;
+// A knowledge base this small fits in the prompt whole, which beats returning
+// nothing when the customer's wording does not match the document's wording.
+const SMALL_KB_CHUNK_LIMIT = 12;
+
+type Passage = { content: string; title: string };
+
+function mapRows(
+  rows: { content: string; kb_documents?: unknown }[] | null
+): Passage[] {
+  return (rows ?? []).map((r) => ({
+    content: r.content,
+    title:
+      (r.kb_documents as unknown as { title: string } | null)?.title ?? "Document",
+  }));
+}
+
+/**
+ * Return the most relevant KB passages for a query, formatted for inclusion in
+ * the AI system prompt. Empty string only when the org has no knowledge base.
+ *
+ * Strategy, in order:
+ *  1. pgvector similarity when embeddings are configured (best).
+ *  2. Full-text search with AND semantics — precise.
+ *  3. Full-text search with OR semantics — catches partial wording matches.
+ *  4. For a small knowledge base, return everything. Keyword search cannot
+ *     bridge vocabulary gaps ("shop" vs "store"), and answering from the whole
+ *     document is far better than letting the model guess.
  */
 export async function retrieveContext(orgId: string, query: string): Promise<string> {
   const db = supabaseAdmin();
-  let results: { content: string; title: string }[] = [];
+  let results: Passage[] = [];
 
   try {
     if (embeddingsEnabled()) {
-      const [queryEmbedding] = await embed([query], "query");
-      const { data } = await db.rpc("match_kb_chunks", {
-        p_org_id: orgId,
-        p_query_embedding: queryEmbedding,
-        p_match_count: 5,
-      });
-      results = data ?? [];
+      // Isolated: a Voyage outage or rate limit (the free tier allows only
+      // 3 requests/minute) must not abort retrieval — the keyword stages below
+      // are a perfectly usable fallback.
+      try {
+        const [queryEmbedding] = await embed([query], "query");
+        const { data } = await db.rpc("match_kb_chunks", {
+          p_org_id: orgId,
+          p_query_embedding: queryEmbedding,
+          p_match_count: 5,
+        });
+        results = data ?? [];
+      } catch (err) {
+        console.warn(
+          "Embedding query failed, falling back to full-text search:",
+          err instanceof Error ? err.message : err
+        );
+      }
     }
 
-    // FTS path — also the fallback when vector search finds nothing
+    // 2 — precise full-text search
     if (results.length === 0) {
       const { data } = await db
         .from("kb_chunks")
@@ -146,11 +220,37 @@ export async function retrieveContext(orgId: string, query: string): Promise<str
         .eq("org_id", orgId)
         .textSearch("fts", query, { type: "websearch" })
         .limit(5);
-      results = (data ?? []).map((r) => ({
-        content: r.content,
-        title:
-          (r.kb_documents as unknown as { title: string } | null)?.title ?? "Document",
-      }));
+      results = mapRows(data);
+    }
+
+    // 3 — any-term match
+    if (results.length === 0) {
+      const orQuery = toOrTsQuery(query);
+      if (orQuery) {
+        const { data } = await db
+          .from("kb_chunks")
+          .select("content, kb_documents(title)")
+          .eq("org_id", orgId)
+          .textSearch("fts", orQuery)
+          .limit(5);
+        results = mapRows(data);
+      }
+    }
+
+    // 4 — small knowledge base: send all of it
+    if (results.length === 0) {
+      const { count } = await db
+        .from("kb_chunks")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", orgId);
+      if ((count ?? 0) > 0 && (count ?? 0) <= SMALL_KB_CHUNK_LIMIT) {
+        const { data } = await db
+          .from("kb_chunks")
+          .select("content, kb_documents(title)")
+          .eq("org_id", orgId)
+          .limit(SMALL_KB_CHUNK_LIMIT);
+        results = mapRows(data);
+      }
     }
   } catch (err) {
     console.error("KB retrieval failed:", err);
@@ -159,7 +259,14 @@ export async function retrieveContext(orgId: string, query: string): Promise<str
 
   if (results.length === 0) return "";
 
-  return results
-    .map((r, i) => `[Source ${i + 1}: ${r.title}]\n${r.content}`)
-    .join("\n\n");
+  // Keep the prompt bounded.
+  const parts: string[] = [];
+  let used = 0;
+  for (const [i, r] of results.entries()) {
+    const block = `[Source ${i + 1}: ${r.title}]\n${r.content}`;
+    if (used + block.length > MAX_CONTEXT_CHARS) break;
+    parts.push(block);
+    used += block.length;
+  }
+  return parts.join("\n\n");
 }

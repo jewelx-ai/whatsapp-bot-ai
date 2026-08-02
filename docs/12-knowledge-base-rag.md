@@ -1,54 +1,81 @@
-# 12 — Knowledge Base & RAG
+# 12 — Knowledge Base and RAG
 
-The AI bot answers customer questions from **the business's own content** — PDFs, website pages, and pasted text — using Retrieval-Augmented Generation (RAG). Per-tenant, like everything else.
+> **Readiness update:** URL ingestion has SSRF protection, and plan limits now
+> cap KB document count and document size. PDF/text/vector/provider behavior
+> still requires representative live testing. See
+> [13-feature-readiness-audit.md](13-feature-readiness-audit.md).
 
-## How it works
+## Flow
 
+```text
+PDF / URL / pasted text
+  → extract/normalize
+  → chunks (~1,500 characters, 200 overlap, maximum 500)
+  → optional Voyage voyage-3.5-lite embeddings
+  → tenant kb_documents + kb_chunks
+
+unmatched incoming question with AI enabled
+  → retrieve up to five tenant passages
+     ├─ pgvector cosine search when embeddings exist
+     └─ PostgreSQL FTS fallback
+  → append context to GLM system prompt
+  → answer or [HANDOFF]
 ```
-Ingestion:  PDF / URL / text ──► extract text ──► chunk (~1500 chars, 200 overlap)
-            ──► [embed via Voyage, if key set] ──► kb_chunks (per org)
 
-Answering:  incoming message (no keyword match, AI on)
-            ──► retrieve top-5 relevant chunks for this org
-                 • vector search (pgvector cosine) when embeddings exist
-                 • Postgres full-text search otherwise / as fallback
-            ──► inject into Claude's system prompt as <knowledge_base>
-            ──► Claude answers from it; unknown → [HANDOFF] to human
-```
+## Retrieval modes
 
-## Two retrieval modes (zero-config default)
-
-| Mode | Requires | Quality |
+| Mode | Requirement | Notes |
 |---|---|---|
-| **Full-text search** (default) | Nothing — works out of the box | Good for FAQ/keyword-style questions |
-| **Vector search** | `VOYAGE_API_KEY` env (voyage-3.5-lite, 1024-dim) | Better for paraphrased/semantic questions |
+| PostgreSQL FTS | None | Default and vector-empty fallback; best for lexical/FAQ matches |
+| Voyage + pgvector | `VOYAGE_API_KEY` | Better semantic matching; existing FTS-only documents are not backfilled automatically |
 
-The mode is chosen automatically: chunks get embeddings only when the key is present; retrieval tries vectors first and falls back to FTS. You can add the key later — only newly ingested documents get embeddings (re-upload old ones to upgrade them).
+There is no similarity threshold in the current vector RPC, so irrelevant top results and answer quality need evaluation.
 
-## Database (migration 003)
+## Database
 
-- `kb_documents` — per-org: title, source_type (`pdf`/`url`/`text`), source, status (`processing`/`ready`/`error`), chunk_count
-- `kb_chunks` — content, `embedding vector(1024)` (nullable), generated `fts tsvector` column; GIN + HNSW indexes
-- `match_kb_chunks(org, embedding, count)` — cosine similarity RPC
-- Org-scoped RLS on both tables; deleting a document cascades to its chunks
+- `kb_documents`: tenant, title, source type/source, processing status, chunk count, timestamp.
+- `kb_chunks`: tenant/document, content, nullable 1024-dimensional embedding, generated English FTS, timestamp.
+- GIN FTS and HNSW cosine indexes.
+- RLS on both tables; deleting a document cascades to chunks.
+- `match_kb_chunks` returns nearest embedded passages for an org.
 
-**Existing databases:** run [`supabase/migration-003-knowledge-base.sql`](../supabase/migration-003-knowledge-base.sql) in the SQL Editor. Fresh installs: `schema.sql` already includes it.
+Fresh installs use the tracked `supabase/migrations/` chain. `schema.sql` is a
+historical reference only.
 
-## API endpoints (all auth-required)
+## APIs
 
-| Endpoint | Input | Notes |
-|---|---|---|
-| `POST /api/kb/upload` | multipart `file` (PDF) | Max 20 MB; text extracted with unpdf |
-| `POST /api/kb/url` | `{url}` | Fetches the page, strips nav/scripts (cheerio), indexes main content |
-| `POST /api/kb/text` | `{title, text}` | Pasted FAQs/policies, 20–500K chars |
+### `POST /api/kb/upload`
 
-Responses: `200 {ok, documentId, chunkCount}` · `401` · `400` validation · `413` too large · `422` extraction/ingestion failure (document marked `error`).
-Deletion happens client-side via Supabase (RLS-protected), cascading to chunks.
+Authenticated multipart PDF/Word upload, filename extension check, 20 MB cap,
+text extraction, plan-limit check, then ingestion. MIME/magic validation, malware
+policy, scanned-PDF OCR, and production resource testing are not implemented.
 
-## Dashboard: `/knowledge`
+### `POST /api/kb/text`
 
-Three tabs (PDF upload / website URL / paste text), success shows passages-indexed count, document list with type icon, source, chunk count, status badge, and delete.
+Authenticated title and 20–500,000 character text ingestion, capped further by
+the workspace plan.
 
-## AI prompt integration
+### `POST /api/kb/url`
 
-`generateAIReply` retrieves context for the user's latest message and appends it to the system prompt inside a `<knowledge_base>` block. The prompt instructs Claude to prefer KB content, never invent facts, never mention "sources", and emit `[HANDOFF]` when the KB doesn't cover the question.
+Authenticated page fetch, SSRF-safe redirect handling, 5 MB response cap, Cheerio
+extraction, plan-limit check, and ingestion.
+
+## Dashboard
+
+`/knowledge` provides PDF/Word, website, and text forms, success/error messages,
+document status/list, and RLS-scoped deletion.
+
+## AI integration
+
+`generateAIReply()` retrieves context for the latest user turn and places it inside a `<knowledge_base>` system-prompt section. The prompt asks GLM not to invent facts and to emit `[HANDOFF]` when information is unavailable.
+
+Prompt instructions alone are not a security boundary. Test prompt injection, malicious tenant documents, unsupported claims, source irrelevance, and handoff consistency.
+
+## Operational limitations
+
+- Per-plan document count and document-size quotas are enforced.
+- No request rate limits or platform spend alerts.
+- Provider retries/timeouts and partial batch recovery need hardening.
+- Adding Voyage later does not embed old chunks automatically.
+- Failed ingestion can leave an error document row and any chunks inserted before a later batch failure.
+- Retrieval quality and model grounding were not live-tested in this audit.

@@ -8,6 +8,7 @@ export type Organization = {
   ai_enabled: boolean;
   plan: "free" | "starter" | "pro";
   plan_status: "active" | "past_due" | "canceled";
+  suspended: boolean;
   created_at: string;
 };
 
@@ -15,6 +16,7 @@ export type Profile = {
   id: string;
   org_id: string | null;
   full_name: string | null;
+  email: string | null; // synced copy of auth.users.email
   role: "owner" | "admin" | "agent";
   created_at: string;
 };

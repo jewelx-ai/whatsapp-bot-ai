@@ -77,11 +77,34 @@ create table if not exists broadcasts (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id) on delete cascade,
   template_name text not null,
+  language_code text not null default 'en_US',
   audience_tag text,
+  status text not null default 'completed' check (status in ('queued', 'processing', 'completed', 'partial_failed', 'failed')),
+  idempotency_key text,
+  audience_size int not null default 0,
+  processed_count int not null default 0,
   scheduled_at timestamptz,
   sent_count int not null default 0,
   failed_count int not null default 0,
+  completed_at timestamptz,
   created_at timestamptz not null default now()
+);
+
+create table if not exists broadcast_recipients (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id) on delete cascade,
+  broadcast_id uuid not null references broadcasts(id) on delete cascade,
+  contact_id uuid not null references contacts(id) on delete cascade,
+  wa_phone text not null,
+  status text not null default 'queued' check (status in ('queued', 'processing', 'sent', 'failed')),
+  attempts int not null default 0,
+  wa_message_id text,
+  error_kind text,
+  error_reason text,
+  sent_at timestamptz,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (broadcast_id, contact_id)
 );
 
 -- ============ INDEXES ============
@@ -92,6 +115,11 @@ create index if not exists idx_conversations_org_last on conversations(org_id, l
 create index if not exists idx_contacts_org on contacts(org_id);
 create index if not exists idx_auto_replies_org on auto_replies(org_id);
 create index if not exists idx_broadcasts_org on broadcasts(org_id);
+create unique index if not exists broadcasts_org_idempotency_key
+  on broadcasts(org_id, idempotency_key)
+  where idempotency_key is not null;
+create index if not exists idx_broadcast_recipients_broadcast_status on broadcast_recipients(broadcast_id, status, created_at);
+create index if not exists idx_broadcast_recipients_org on broadcast_recipients(org_id, created_at desc);
 create index if not exists idx_orgs_wa_phone_number on organizations(wa_phone_number_id);
 
 -- ============ TENANT ISOLATION HELPERS ============
@@ -158,6 +186,7 @@ alter table conversations enable row level security;
 alter table messages enable row level security;
 alter table auto_replies enable row level security;
 alter table broadcasts enable row level security;
+alter table broadcast_recipients enable row level security;
 
 create policy "own org read" on organizations for select to authenticated
   using (id = public.current_org_id());
@@ -178,6 +207,8 @@ create policy "org messages" on messages for all to authenticated
 create policy "org auto_replies" on auto_replies for all to authenticated
   using (org_id = public.current_org_id()) with check (org_id = public.current_org_id());
 create policy "org broadcasts" on broadcasts for all to authenticated
+  using (org_id = public.current_org_id()) with check (org_id = public.current_org_id());
+create policy "org broadcast recipients" on broadcast_recipients for all to authenticated
   using (org_id = public.current_org_id()) with check (org_id = public.current_org_id());
 
 -- Realtime for the live inbox

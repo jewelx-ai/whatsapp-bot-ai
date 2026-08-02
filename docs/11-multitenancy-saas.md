@@ -1,71 +1,113 @@
-# 11 — Multi-Tenancy & SaaS Model
+# 11 — Multi-Tenancy and SaaS Model
 
-As of 2026-07-14 the app is a **multi-tenant SaaS**: many businesses (tenants) share one deployment, one database, and one webhook — each with fully isolated data and its own WhatsApp number.
+> **Update (2026-07-23):** The tenant-hijack policy gap is fixed, roles are
+> enforced for workspace administration, and a separate single-operator platform
+> tier was added ([14-platform-admin.md](14-platform-admin.md)). Billing and
+> plan limits are enforced for AI, broadcasts, and KB ingestion. Billing
+> automation remains unbuilt. See [08-changelog.md](08-changelog.md).
 
 ## Tenant model
 
-- A tenant = an **organization** (row in `organizations`).
-- Every dashboard user (`profiles.org_id`) belongs to exactly one org; the first user who creates a workspace becomes its `owner`.
-- Every data row (`contacts`, `conversations`, `messages`, `auto_replies`, `broadcasts`) carries `org_id`.
-- Plan fields (`plan`: free/starter/pro, `plan_status`) exist on the org for billing — Stripe integration is not built yet.
+- One tenant is an `organizations` row.
+- A dashboard user has one `profiles` row with nullable `org_id`.
+- Onboarding creates an organization, links the caller, promotes them to owner, and seeds tenant rules.
+- Contacts, conversations, messages, rules, broadcasts, KB documents, and KB chunks carry `org_id`.
+- `plan` and `plan_status` are operator-managed and enforced for AI replies,
+  broadcasts, and KB ingestion.
 
-## Credential model (who owns what)
+## Credential model
 
-| Credential | Level | Where it lives |
-|---|---|---|
-| Supabase keys | Platform | env vars |
-| Meta **app secret** + webhook **verify token** | Platform (one Meta app serves all tenants) | env vars |
-| WhatsApp **Phone Number ID** + **access token** | **Per tenant** | `organizations` table, entered in `/settings` |
-| Anthropic API key | Platform (billed to you) | env var; tenants toggle `ai_enabled` per workspace |
+| Credential | Scope | Current location | Readiness |
+|---|---|---|---|
+| Supabase URL/anon/service role | Platform | Environment | Service role must remain server-only |
+| Meta app secret and webhook verify token | Platform | Environment | App secret must be mandatory in production |
+| WhatsApp Phone Number ID | Tenant | `organizations` | Used for routing |
+| WhatsApp access token | Tenant | `organizations` encrypted text | Write-only in browser; encrypted on new saves |
+| Z.ai key | Platform | Environment | Requires tenant quotas/spend controls |
+| Voyage key | Platform, optional | Environment | Requires quotas/spend controls |
 
-## Webhook routing (the core multi-tenant mechanic)
+## Shared webhook routing
 
-One endpoint (`POST /api/webhook`) receives events for **all** tenants. Meta includes `value.metadata.phone_number_id` in every payload; the webhook looks up the owning org (`organizations.wa_phone_number_id`) and processes the event with that org's id, credentials, and AI setting. Events for unknown phone numbers are logged and skipped.
+Meta includes `value.metadata.phone_number_id`. The webhook loads the organization with that Phone Number ID, stores tenant data with its `org_id`, and sends with its token. Unknown IDs are logged and skipped.
 
-```
-Meta Cloud API ──► POST /api/webhook
-                     │ metadata.phone_number_id
-                     ▼
-             organizations lookup ──► org A? org B? …
-                     ▼
-     store contact/conversation/message with org_id
-     reply using that org's wa_access_token
-```
+The design supports many tenants per deployment, but webhook processing must become durable/idempotent before production.
 
-## Tenant isolation (RLS)
+## RLS intent and current gap
 
-- Helper `current_org_id()` (SECURITY DEFINER) returns the caller's `profiles.org_id`.
-- Every table has one policy: `org_id = current_org_id()` for select/insert/update/delete — a logged-in user can never read or write another tenant's rows, even with hand-crafted queries, because Postgres enforces it.
-- Server code (webhook, send/broadcast APIs) uses the service-role key (bypasses RLS) but always filters by the resolved org and verifies resource ownership (e.g. the send API checks `conversations.org_id` matches the caller's org before sending).
-- `create_organization(org_name)` RPC: creates the org, promotes the caller to owner, seeds the default auto-replies. Fails if the user already has an org.
+`current_org_id()` reads the caller's profile using SECURITY DEFINER. Tenant table policies compare every row's `org_id` with that value. Server routes using service role must perform explicit ownership checks.
 
-## SaaS user journey
+### Isolation issues — fixed 2026-07-23
 
-1. **Sign up** at `/login` → profile auto-created (no org yet)
-2. Dashboard layout detects no org → redirect to **`/onboarding`** → "Create your workspace"
-3. Redirected to **`/settings`** → paste WhatsApp Phone Number ID + access token (from Meta), toggle AI replies
-4. Incoming messages to that number now flow into this workspace's inbox
+The profile self-update policy still matches only `auth.uid() = id`, but column
+privileges now restrict client updates to `full_name`, so `org_id` and `role`
+cannot be changed from the browser (previously a tenant-hijack path). Client
+updates on `organizations` are limited to `name` and `ai_enabled`. Role changes go
+through the operator-only `PATCH /api/admin/users`.
 
-## Files changed for multi-tenancy
+### Credential exposure
 
-| File | Change |
-|---|---|
-| `supabase/schema.sql` | v2: `organizations`, `org_id` everywhere, org-scoped RLS, `current_org_id()`, `create_organization()` RPC, per-org seed replies |
-| `src/lib/org.ts` | **New** — org lookup by phone_number_id / current user, credential extraction |
-| `src/lib/whatsapp.ts` | All senders take per-org `WaCredentials` instead of env vars |
-| `src/lib/bot.ts` | Org-scoped rules; per-org AI toggle |
-| `src/lib/ai.ts` | Tenant toggle moved to `organizations.ai_enabled` (platform key stays env) |
-| `src/app/api/webhook/route.ts` | Routes by `metadata.phone_number_id`; per-org processing |
-| `src/app/api/messages/send`, `api/broadcasts` | Resolve caller's org; use org creds; `409` if WhatsApp not connected |
-| `src/app/onboarding/page.tsx` | **New** — workspace creation |
-| `src/app/(dashboard)/settings/page.tsx` | **New** — WhatsApp connection + AI toggle + workspace name |
-| `src/app/(dashboard)/layout.tsx` | Redirects org-less users to onboarding |
-| Middleware / nav / env template / status page | Extended for the new routes and credential model |
+`select` on `organizations.wa_access_token` is revoked for `anon`/`authenticated`,
+and Settings no longer loads the token into the browser; it is write-only through
+`/api/settings` with an owner/admin check. New saves are encrypted with
+`WHATSAPP_TOKEN_ENCRYPTION_KEY`; legacy plaintext rows remain readable and should
+be re-saved to migrate them.
 
-## Not built yet (SaaS roadmap)
+## User journey
 
-- **Billing**: Stripe checkout + webhooks driving `plan` / `plan_status`; usage limits per plan (e.g. message caps on free)
-- **Team invites**: adding agents to an existing org (currently each signup creates its own workspace)
-- **Meta Embedded Signup**: OAuth-style "Connect WhatsApp" button instead of pasting credentials
-- **Per-role permissions**: owner/admin/agent columns exist, but all members currently have equal access
-- Token encryption at rest (tokens are plaintext in Postgres; consider Supabase Vault)
+1. Sign up at `/login`; auth trigger creates an org-less profile.
+2. Dashboard redirects to `/onboarding`.
+3. `create_organization()` creates the workspace and seed rules.
+4. `/settings` accepts tenant WhatsApp credentials and AI toggle.
+5. Shared webhook begins routing matching Phone Number ID events to the workspace.
+
+The current “connected” label confirms only that values are present, not that Meta accepts them.
+
+## Administration is operator-only
+
+There is **one** admin tier. The tenant-facing admin page and
+`/api/admin/members` were removed on 2026-07-25: customers get customer features
+only, and all administration happens in the operator portal, which now lives at
+`/admin` and is reachable only by the single configured super admin.
+
+| Surface | Path | Sign-in | Who | Scope |
+|---|---|---|---|---|
+| Client dashboard | `/inbox` … `/settings` | `/login` | Tenant members | Their own workspace data |
+| Platform operator | `/admin` | `/admin/login` | One account (`PLATFORM_SUPER_ADMIN_EMAIL`) | Every workspace |
+
+The operator has a separate login page, is not a member of any workspace, is
+never linked from tenant UI, and is redirected out of the tenant app by
+middleware. It creates/deletes workspaces and users, assigns roles and
+workspaces, changes plan and billing status, and suspends tenants. Full detail in
+[14-platform-admin.md](14-platform-admin.md).
+
+## Role model
+
+The schema defines `owner`, `admin`, and `agent`.
+
+- **Who can change a role:** only the platform operator, through
+  `PATCH /api/admin/users`. A workspace can never be left without an owner.
+- **What roles still gate inside a workspace:** WhatsApp credential writes in
+  `/api/settings` require `owner`/`admin`.
+- **What they do not gate:** inbox, contacts, broadcasts, and knowledge-base data
+  are visible to every member of the workspace.
+
+Team invitations (email-based self-serve onboarding) are not built; the operator
+provisions accounts instead.
+
+## User journey (operator-provisioned)
+
+Alongside self-serve signup, the operator can provision a tenant directly:
+create the workspace on `/admin/organizations`, create its owner account on
+`/admin/users` with that workspace and the `owner` role, then hand over the
+temporary password. The tenant connects WhatsApp in its own `/settings`.
+
+## Deferred SaaS scope
+
+- Stripe checkout and billing webhooks; plan/status changes are manual in the
+  operator portal.
+- Team invitations and membership lifecycle.
+- Data-level role authorization inside a workspace.
+- Meta Embedded Signup.
+- Vault-backed WhatsApp tokens and encryption key rotation tooling.
+- Per-minute rate limits, metering beyond the daily AI cap, audit logs, and
+  spend alerts.

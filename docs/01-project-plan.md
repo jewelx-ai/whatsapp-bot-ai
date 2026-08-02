@@ -1,56 +1,84 @@
 # 01 — Project Plan
 
+> **Readiness update (2026-07-21):** The planned Phase 0–4 code paths are substantially implemented, but the product is **not production-ready**. See [13-feature-readiness-audit.md](13-feature-readiness-audit.md) for verified results and release blockers.
+
 ## Goal
 
-A **multi-tenant SaaS** WhatsApp bot platform: many businesses sign up, connect their own WhatsApp number, and get keyword auto-replies, AI replies, a live team inbox with human handoff, broadcasts, and analytics — with full data isolation per tenant (see [11-multitenancy-saas.md](11-multitenancy-saas.md)).
+Build a multi-tenant WhatsApp automation SaaS where businesses create a workspace, connect a WhatsApp number, manage deterministic and AI replies, collaborate through a live inbox, send consented template campaigns, and ground AI answers in business content.
 
-## Tech Stack
+Tenant isolation, durable messaging, secret protection, consent, and operational controls are release requirements—not optional follow-up work.
 
-| Layer | Choice | Why |
-|---|---|---|
-| Frontend + Backend | Next.js 16 (App Router, TypeScript) | One codebase; route handlers are the backend (webhook receiver, send API) |
-| Database + Auth + Storage | Supabase (Postgres, Auth, Realtime) | Auth for dashboard login, Postgres for data, Realtime for live inbox |
-| WhatsApp connection | Meta WhatsApp Cloud API (official) | Free tier, webhook-based, no ban risk (unlike Baileys), fits serverless |
-| Styling | Tailwind CSS | Fast UI building |
-| Validation | Zod | Validate webhook payloads and API bodies |
-| Hosting | Vercel | Native Next.js, HTTPS webhooks out of the box |
+## Stack
 
-## Build Phases
+| Layer | Choice |
+|---|---|
+| Web application and APIs | Next.js 16, React 19, TypeScript, App Router |
+| Data/auth/realtime/vector search | Supabase Postgres, Auth, Realtime, pgvector |
+| Messaging | Meta WhatsApp Cloud API |
+| AI | GLM (Z.ai) |
+| Optional embeddings | Voyage AI; PostgreSQL FTS fallback |
+| Validation | Zod |
+| Deployment | Vercel or standalone Docker |
 
-### ✅ Phase 0 — Setup (DONE)
-- Next.js scaffolded with TypeScript + Tailwind
-- Supabase + Zod installed
-- Env var structure defined (`.env.local.example`)
+## Delivery phases
 
-### ✅ Phase 1 — Core bot (DONE)
-- Webhook route: Meta verification + incoming messages + signature check
-- Message storage with dedupe in Supabase
-- Send helpers (text, template, mark-as-read)
-- Keyword auto-replies from the `auto_replies` table
-- Human handoff ("help" → conversation status `open`, bot goes silent)
-- Manual agent reply API (auth-protected)
+### Phase 0 — Project setup: implemented
 
-### ✅ Phase 2 — Dashboard (DONE)
-- `/login` — Supabase Auth (sign in + sign up)
-- `/inbox` — conversation list + live chat window (Supabase Realtime), manual replies, bot/human/closed handoff
-- `/contacts` — list, search, inline tag management
-- `/auto-replies` — full rule builder UI (create/edit/toggle/delete)
-- Middleware auth guard on all dashboard routes
-- Deferred to later: CSV import, `/settings` page
+- Next.js, TypeScript, Tailwind, Supabase clients, Zod, and environment template
+- Production build configuration and documentation structure
 
-### ✅ Phase 4 — Knowledge Base + RAG + Docker (DONE — client contract scope)
-- Per-org knowledge base: PDF upload, website ingestion, pasted text
-- RAG retrieval (pgvector via Voyage embeddings, FTS fallback) feeding AI replies
-- `/knowledge` management UI
-- Docker deployment (Dockerfile + compose + docs)
+### Phase 1 — Core bot: implemented, hardening required
 
-### ✅ Phase 3 — Growth (DONE)
-- Broadcast template campaigns (`/broadcasts` + API) with sent/failed stats, audience by tag
-- Analytics (`/analytics`): stat tiles + 14-day messages-per-day chart
-- AI replies via Claude API (`claude-opus-4-8`) with `[HANDOFF]` human escalation — opt-in via env vars
+- Meta verification and signed webhook receiver
+- Per-tenant routing, contact/conversation/message persistence, and status updates
+- Keyword rules, fallback, human handoff, Graph API helpers, and manual send API
 
-## Key Constraints (Meta platform rules)
+Open release work: durable/idempotent webhook processing, atomic dedupe, strict signature configuration, complete error handling, timeouts, and integration tests.
 
-- **24-hour window**: free-form replies only within 24h of the user's last message; outside it, pre-approved templates only.
-- **Webhook must answer fast** (<10s) and return 200 even on internal errors, or Meta retries and duplicates messages.
-- Test number supports max **5 verified recipients**; production needs a real business number + business verification.
+### Phase 2 — Dashboard: implemented, defects remain
+
+- Authentication, callback, onboarding, dashboard guard, and settings
+- Realtime inbox, manual replies, status control, contacts, tags, and rule editor
+
+Open release work: role permissions, consent-evidence history, and any remaining
+safe credential-management hardening such as key rotation.
+
+### Phase 3 — Growth: implemented, not scale-ready
+
+- Template broadcasts by tag
+- Client analytics
+- Per-workspace GLM fallback and handoff
+
+Open release work: background campaign workers, cancellation/retry policy,
+per-minute rate limits, Stripe/billing automation, and spend controls.
+
+### Phase 4 — Knowledge base and deployment: implemented, security work required
+
+- PDF, URL, and pasted-text ingestion
+- Chunking, optional Voyage embeddings, pgvector retrieval, FTS fallback, and GLM prompt integration
+- Knowledge management UI and Docker/Vercel configuration
+
+Open release work: SSRF-safe URL fetching, ingestion quotas, representative retrieval tests, fresh migration validation, and Docker smoke testing.
+
+## Explicitly deferred scope
+
+- Stripe checkout and billing webhooks
+- Team invitations and membership administration
+- Owner/admin/agent authorization
+- Meta Embedded Signup
+- Vault-backed tenant tokens and encryption key rotation tooling
+- CSV contact import
+- Independent background job infrastructure and scheduled broadcasts
+- Automated test suite
+
+## Platform constraints
+
+- Free-form WhatsApp replies are limited to the customer-service window; approved templates are required outside it.
+- Webhooks should respond quickly, but must only acknowledge after the event is durably accepted. Returning 200 after failed processing causes data loss.
+- Meta retries must be safe through atomic idempotency rather than being suppressed.
+- Test-number recipient and production messaging limits are controlled by Meta.
+- Platform AI/embedding keys require quotas, rate limits, monitoring, and cost controls.
+
+## Production definition of done
+
+The product is done only when the exit criteria in the [feature readiness audit](13-feature-readiness-audit.md#production-exit-criteria) are met and a repeat audit changes the verdict to GO.

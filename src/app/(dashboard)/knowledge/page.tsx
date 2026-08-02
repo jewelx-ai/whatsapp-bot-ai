@@ -6,17 +6,17 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 type KbDocument = {
   id: string;
   title: string;
-  source_type: "pdf" | "url" | "text";
+  source_type: "pdf" | "docx" | "url" | "text";
   source: string | null;
   status: "processing" | "ready" | "error";
   chunk_count: number;
   created_at: string;
 };
 
-const typeIcons = { pdf: "📄", url: "🌐", text: "📝" };
+const typeLabels = { pdf: "PDF", docx: "DOCX", url: "URL", text: "TXT" };
 
 export default function KnowledgePage() {
-  const supabase = useRef(supabaseBrowser()).current;
+  const [supabase] = useState(() => supabaseBrowser());
   const [docs, setDocs] = useState<KbDocument[]>([]);
   const [tab, setTab] = useState<"pdf" | "url" | "text">("pdf");
   const [busy, setBusy] = useState(false);
@@ -37,7 +37,7 @@ export default function KnowledgePage() {
   }, [supabase]);
 
   useEffect(() => {
-    load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   async function handleResponse(res: Response, successMsg: string) {
@@ -51,7 +51,7 @@ export default function KnowledgePage() {
     return false;
   }
 
-  async function uploadPdf() {
+  async function uploadFile() {
     const file = fileRef.current?.files?.[0];
     if (!file) return;
     setBusy(true);
@@ -103,65 +103,61 @@ export default function KnowledgePage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl space-y-6">
+    <div className="app-page-narrow space-y-6">
       <div>
-        <h1 className="text-xl font-bold">📚 Knowledge Base</h1>
-        <p className="text-sm text-zinc-400 mt-1">
+        <h1 className="page-title">Knowledge Base</h1>
+        <p className="page-copy">
           Upload your business documents — the AI answers customer questions
-          from this content (RAG). Supported: PDF files, website pages, pasted
-          text.
+          from this content (RAG). Supported: PDF and Word (.docx) files up to
+          20 MB, website pages, and pasted text.
         </p>
       </div>
 
       {/* Add content */}
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-4">
-        <div className="flex gap-1 text-sm">
+      <div className="app-panel space-y-4 p-4 sm:p-5">
+        <div className="flex flex-wrap gap-1 text-sm">
           {(["pdf", "url", "text"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-3 py-1.5 rounded-lg ${
+              className={`rounded-md px-3 py-1.5 font-medium ${
                 tab === t
-                  ? "bg-zinc-800 text-zinc-100 font-medium"
-                  : "text-zinc-400 hover:text-zinc-100"
+                  ? "bg-teal-700 text-white"
+                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-950"
               }`}
             >
-              {typeIcons[t]} {t === "pdf" ? "PDF" : t === "url" ? "Website" : "Text"}
+              {t === "pdf" ? "PDF / Word" : t === "url" ? "Website" : "Text"}
             </button>
           ))}
         </div>
 
         {tab === "pdf" && (
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <input
               ref={fileRef}
               type="file"
-              accept=".pdf"
-              className="flex-1 text-sm text-zinc-400 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-800 file:text-zinc-200 file:px-3 file:py-2 file:text-sm"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="field flex-1 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700"
             />
-            <button
-              onClick={uploadPdf}
-              disabled={busy}
-              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-4 py-2 text-sm font-semibold"
-            >
+            <button onClick={uploadFile} disabled={busy} className="btn-primary">
               {busy ? "Indexing…" : "Upload"}
             </button>
           </div>
         )}
 
         {tab === "url" && (
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addUrl()}
               placeholder="https://yourwebsite.com/faq"
-              className="flex-1 rounded-lg bg-zinc-950 border border-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+              className="field flex-1"
             />
             <button
               onClick={addUrl}
               disabled={busy || !url.trim()}
-              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-4 py-2 text-sm font-semibold"
+              className="btn-primary"
             >
               {busy ? "Indexing…" : "Add page"}
             </button>
@@ -174,27 +170,27 @@ export default function KnowledgePage() {
               value={textTitle}
               onChange={(e) => setTextTitle(e.target.value)}
               placeholder="Title (e.g. Return Policy)"
-              className="w-full rounded-lg bg-zinc-950 border border-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+              className="field"
             />
             <textarea
               value={textBody}
               onChange={(e) => setTextBody(e.target.value)}
               rows={5}
               placeholder="Paste FAQs, policies, product info…"
-              className="w-full rounded-lg bg-zinc-950 border border-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+              className="field"
             />
             <button
               onClick={addText}
               disabled={busy || !textTitle.trim() || textBody.trim().length < 20}
-              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-4 py-2 text-sm font-semibold"
+              className="btn-primary"
             >
               {busy ? "Indexing…" : "Add text"}
             </button>
           </div>
         )}
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        {notice && <p className="text-sm text-emerald-400">{notice}</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {notice && <p className="text-sm text-teal-700">{notice}</p>}
       </div>
 
       {/* Document list */}
@@ -202,37 +198,39 @@ export default function KnowledgePage() {
         {docs.map((d) => (
           <div
             key={d.id}
-            className="rounded-xl border border-zinc-800 p-4 flex items-center gap-3"
+            className="app-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center"
           >
-            <span className="text-lg">{typeIcons[d.source_type]}</span>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[10px] font-bold text-slate-600">
+              {typeLabels[d.source_type]}
+            </span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{d.title}</p>
-              <p className="text-xs text-zinc-500 truncate">
+              <p className="truncate text-sm font-semibold text-slate-950">{d.title}</p>
+              <p className="truncate text-xs text-slate-500">
                 {d.source ?? "pasted text"} · {d.chunk_count} passages ·{" "}
                 {new Date(d.created_at).toLocaleDateString()}
               </p>
             </div>
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+              className={`badge ${
                 d.status === "ready"
-                  ? "bg-emerald-500/15 text-emerald-400"
+                  ? "bg-teal-50 text-teal-700"
                   : d.status === "error"
-                    ? "bg-red-500/15 text-red-400"
-                    : "bg-amber-500/15 text-amber-400"
+                    ? "bg-red-50 text-red-700"
+                    : "bg-amber-50 text-amber-800"
               }`}
             >
               {d.status}
             </span>
             <button
               onClick={() => remove(d.id)}
-              className="text-xs text-red-400/70 hover:text-red-400"
+              className="btn-ghost text-red-600 hover:text-red-700"
             >
               Delete
             </button>
           </div>
         ))}
         {docs.length === 0 && (
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-slate-500">
             No documents yet — the AI currently answers from conversation
             context only.
           </p>

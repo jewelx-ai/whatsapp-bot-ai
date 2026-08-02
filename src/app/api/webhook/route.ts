@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runAutoReply } from "@/lib/bot";
-import { markAsRead } from "@/lib/whatsapp";
+import { markAsRead, sendText } from "@/lib/whatsapp";
 import { getOrgByPhoneNumberId, orgWaCredentials } from "@/lib/org";
 import type { Organization } from "@/lib/types";
 
@@ -58,6 +58,12 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
+        // Platform-suspended tenants are ignored (no processing, no auto-reply).
+        if (org.suspended) {
+          console.warn("Skipping webhook for suspended org:", org.id);
+          continue;
+        }
+
         for (const msg of value.messages ?? []) {
           await handleIncomingMessage(org, msg, value.contacts?.[0]);
         }
@@ -67,9 +73,11 @@ export async function POST(req: NextRequest) {
       }
     }
   } catch (err) {
-    // Log but still return 200 — Meta retries aggressively on non-200
-    // and retried deliveries would duplicate messages.
+    // Dedupe is atomic (the unique wa_message_id insert gates the reply), so
+    // it is safe to signal failure and let Meta retry the batch rather than
+    // silently dropping events.
     console.error("Webhook processing error:", err);
+    return new NextResponse("Processing error", { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
@@ -79,7 +87,18 @@ export async function POST(req: NextRequest) {
 
 function verifySignature(rawBody: string, header: string | null): boolean {
   const secret = process.env.WHATSAPP_APP_SECRET;
-  if (!secret) return true; // allow during local dev; set the secret in prod
+  if (!secret) {
+    // Fail closed: never accept unsigned webhooks by default. For local
+    // development only, set ALLOW_UNSIGNED_WEBHOOKS=true to opt out explicitly.
+    if (process.env.ALLOW_UNSIGNED_WEBHOOKS === "true") {
+      console.warn(
+        "WHATSAPP_APP_SECRET unset and ALLOW_UNSIGNED_WEBHOOKS=true — skipping signature verification (dev only)"
+      );
+      return true;
+    }
+    console.error("WHATSAPP_APP_SECRET is not set — rejecting webhook.");
+    return false;
+  }
   if (!header?.startsWith("sha256=")) return false;
   const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
   const received = header.slice("sha256=".length);
@@ -105,16 +124,8 @@ async function handleIncomingMessage(
         ? msg.interactive?.button_reply?.title ?? msg.interactive?.list_reply?.title ?? ""
         : "";
 
-  // Dedupe: Meta may redeliver the same message
-  const { data: existing } = await db
-    .from("messages")
-    .select("id")
-    .eq("wa_message_id", msg.id)
-    .maybeSingle();
-  if (existing) return;
-
   // Upsert contact within this tenant
-  const { data: contactRow } = await db
+  const { data: contactRow, error: contactErr } = await db
     .from("contacts")
     .upsert(
       {
@@ -127,37 +138,68 @@ async function handleIncomingMessage(
     )
     .select("id")
     .single();
-  if (!contactRow) return;
+  if (contactErr || !contactRow) {
+    throw new Error(`Failed to upsert contact: ${contactErr?.message ?? "missing row"}`);
+  }
 
   // Find or create the conversation
-  let conversation = (
-    await db
-      .from("conversations")
-      .select("id, status")
-      .eq("contact_id", contactRow.id)
-      .neq("status", "closed")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-  ).data;
+  const { data: existingConversation, error: conversationSelectErr } = await db
+    .from("conversations")
+    .select("id, status")
+    .eq("contact_id", contactRow.id)
+    .neq("status", "closed")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (conversationSelectErr) {
+    throw new Error(`Failed to load conversation: ${conversationSelectErr.message}`);
+  }
+  let conversation = existingConversation;
 
   if (!conversation) {
-    conversation = (
-      await db
+    const { data: insertedConversation, error: conversationInsertErr } = await db
+      .from("conversations")
+      .insert({ org_id: org.id, contact_id: contactRow.id, status: "bot" })
+      .select("id, status")
+      .single();
+    if (conversationInsertErr?.code === "23505") {
+      const { data: racedConversation, error: racedConversationErr } = await db
         .from("conversations")
-        .insert({ org_id: org.id, contact_id: contactRow.id, status: "bot" })
         .select("id, status")
-        .single()
-    ).data;
+        .eq("contact_id", contactRow.id)
+        .neq("status", "closed")
+        .order("last_message_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (racedConversationErr || !racedConversation) {
+        throw new Error(
+          `Failed to load active conversation after conflict: ${
+            racedConversationErr?.message ?? "missing row"
+          }`
+        );
+      }
+      conversation = racedConversation;
+    } else if (conversationInsertErr || !insertedConversation) {
+      throw new Error(
+        `Failed to create conversation: ${conversationInsertErr?.message ?? "missing row"}`
+      );
+    } else {
+      conversation = insertedConversation;
+    }
   }
-  if (!conversation) return;
 
-  await db.from("conversations")
+  const { error: conversationUpdateErr } = await db.from("conversations")
     .update({ last_message_at: new Date().toISOString() })
     .eq("id", conversation.id);
+  if (conversationUpdateErr) {
+    throw new Error(`Failed to update conversation timestamp: ${conversationUpdateErr.message}`);
+  }
 
-  // Store the incoming message
-  await db.from("messages").insert({
+  // Store the incoming message. The unique constraint on wa_message_id is the
+  // idempotency gate: a redelivered webhook conflicts here (23505) and we skip
+  // the auto-reply, so retries never double-send. Other errors propagate so
+  // the POST handler can return non-200 and let Meta retry.
+  const { error: insertErr } = await db.from("messages").insert({
     org_id: org.id,
     conversation_id: conversation.id,
     direction: "in",
@@ -166,10 +208,43 @@ async function handleIncomingMessage(
     wa_message_id: msg.id,
     status: "received",
   });
+  if (insertErr) {
+    if (insertErr.code === "23505") return; // duplicate delivery — already handled
+    throw new Error(`Failed to store message: ${insertErr.message}`);
+  }
 
   await markAsRead(creds, msg.id).catch(() => {});
 
   if (text) {
+    const consent = consentCommand(text);
+    if (consent) {
+      const { error: consentErr } = await db
+        .from("contacts")
+        .update({ opted_in: consent.optedIn })
+        .eq("id", contactRow.id)
+        .eq("org_id", org.id);
+      if (consentErr) {
+        throw new Error(`Failed to update contact consent: ${consentErr.message}`);
+      }
+
+      const sent = await sendText(creds, waPhone, consent.reply);
+      if (sent.ok) {
+        const { error: consentMessageErr } = await db.from("messages").insert({
+          org_id: org.id,
+          conversation_id: conversation.id,
+          direction: "out",
+          type: "text",
+          body: consent.reply,
+          wa_message_id: sent.waMessageId,
+          status: "sent",
+        });
+        if (consentMessageErr) {
+          throw new Error(`Failed to store consent reply: ${consentMessageErr.message}`);
+        }
+      }
+      return;
+    }
+
     await runAutoReply({
       orgId: org.id,
       creds,
@@ -182,13 +257,37 @@ async function handleIncomingMessage(
   }
 }
 
+function consentCommand(text: string): { optedIn: boolean; reply: string } | null {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, " ");
+
+  if (["stop", "stop all", "unsubscribe", "cancel", "end", "quit"].includes(normalized)) {
+    return {
+      optedIn: false,
+      reply:
+        "You have been unsubscribed from broadcast messages. Reply START to opt back in.",
+    };
+  }
+
+  if (["start", "subscribe", "unstop"].includes(normalized)) {
+    return {
+      optedIn: true,
+      reply: "You are subscribed again and can receive broadcast messages from us.",
+    };
+  }
+
+  return null;
+}
+
 async function handleStatusUpdate(org: Organization, status: WaStatus) {
   const db = supabaseAdmin();
-  await db
+  const { error } = await db
     .from("messages")
     .update({ status: status.status })
     .eq("org_id", org.id)
     .eq("wa_message_id", status.id);
+  if (error) {
+    throw new Error(`Failed to update WhatsApp status: ${error.message}`);
+  }
 }
 
 // ---------- minimal payload types ----------
