@@ -1,4 +1,4 @@
-# WhatsApp Bot SaaS — Next.js + Supabase
+# WhatsApp Bot SaaS - Next.js + Supabase
 
 Multi-tenant WhatsApp automation platform with keyword rules, a live inbox, human handoff, broadcasts, analytics, multilingual AI replies (GLM/Z.ai with Google Gemini failover), and a per-workspace knowledge base.
 
@@ -17,11 +17,11 @@ Multi-tenant WhatsApp automation platform with keyword rules, a live inbox, huma
 
 ## Stack
 
-- **Next.js 16 / React 19** — App Router dashboard and route handlers
-- **Supabase** — Postgres, Auth, RLS, Realtime, and pgvector
-- **Meta WhatsApp Cloud API** — inbound webhooks and outbound messages
-- **GLM (Z.ai) + Google Gemini** — optional AI replies with automatic provider failover and handoff
-- **Voyage AI** — optional knowledge-base embeddings; PostgreSQL FTS is the fallback
+- **Next.js 16 / React 19** - App Router dashboard and route handlers
+- **Supabase** - Postgres, Auth, RLS, Realtime, and pgvector
+- **Meta WhatsApp Cloud API** - inbound webhooks and outbound messages
+- **GLM (Z.ai) + Google Gemini** - optional AI replies with automatic provider failover and handoff
+- **Voyage AI** - optional knowledge-base embeddings; PostgreSQL FTS is the fallback
 
 ## Implemented scope
 
@@ -35,7 +35,7 @@ Multi-tenant WhatsApp automation platform with keyword rules, a live inbox, huma
 - PDF, Word `.docx`, URL, and pasted-text knowledge ingestion with RAG
 - Vercel and standalone Docker configuration
 
-“Implemented” means a code path exists; it does not mean the feature has passed live integration testing. See the audit for per-feature status.
+"Implemented" means a code path exists; it does not mean the feature has passed live integration testing. See the audit for per-feature status.
 
 ## Quick start
 
@@ -87,17 +87,17 @@ Then:
 
 1. Sign up at `/login`.
 2. Create a workspace at `/onboarding`.
-3. Enter that workspace’s WhatsApp Phone Number ID and permanent access token at `/settings`.
+3. Enter that workspace's WhatsApp Phone Number ID and permanent access token at `/settings`.
 4. Register `https://<public-host>/api/webhook` in the shared Meta app and subscribe to `messages`.
 
 ### Two sign-ins
 
 | Area | Path | Who |
 |---|---|---|
-| Workspace (tenant) | `/login` | Customers — customer features only, no admin screen |
+| Workspace (tenant) | `/login` | Customers - customer features only, no admin screen |
 | Platform operator | `/admin/login` | The single `PLATFORM_SUPER_ADMIN_EMAIL` account |
 
-The operator manages every workspace at `/admin` — see
+The operator manages every workspace at `/admin` - see
 [docs/14-platform-admin.md](docs/14-platform-admin.md).
 
 ### 4. Validate
