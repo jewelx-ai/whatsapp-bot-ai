@@ -44,6 +44,7 @@ Documentation index for the WhatsApp automation SaaS built with **Next.js + Supa
 | [19-hardening-fixes.md](19-hardening-fixes.md) | Post-audit dependency, setup, proxy, URL ingestion, and webhook persistence fixes |
 | [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) | CI/CD & Docker deployment inspection report and risk register (unnumbered: cross-cutting workstream doc, not a single subsystem) |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Step-by-step self-hosted Docker deployment: CI/CD, GHCR, nginx, DNS/SSL, rollback (unnumbered, same reason) |
+| [META-APP-REVIEW.md](META-APP-REVIEW.md) | Meta App Review preparation: public pages, reviewer account/tenant setup, demo WhatsApp flow, submission checklist (unnumbered, same reason) |
 
 ## Rule for this project
 

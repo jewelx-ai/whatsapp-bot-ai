@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the WhatsApp bot broadcast worker periodically
+
+[Timer]
+OnBootSec=2min
+# Adjust to the desired broadcast latency.
+OnUnitActiveSec=5min
+Unit=whatsapp-bot-broadcasts.service
+
+[Install]
+WantedBy=timers.target

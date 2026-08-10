@@ -1,55 +1,182 @@
+import { LegalPage } from "@/components/legal/legal-page";
+import { SUPPORT_EMAIL } from "@/lib/site";
+
 export const metadata = {
-  title: "Privacy Policy | WhatsApp Bot",
+  title: "Privacy Policy | JewelX AI",
+  description:
+    "How JewelX AI's WhatsApp automation platform processes business, contact, and message data.",
 };
 
-const updatedAt = "July 31, 2026";
+const updatedAt = "August 10, 2026";
 
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto w-full max-w-3xl px-6 py-12 text-slate-900">
-      <p className="text-sm font-semibold uppercase tracking-[0.12em] text-emerald-700">
-        WhatsApp Bot
+    <LegalPage title="Privacy Policy" updatedAt={updatedAt}>
+      <p>
+        JewelX AI is a multi-tenant platform that helps businesses (&ldquo;workspaces&rdquo;)
+        manage WhatsApp customer conversations: keyword auto-replies, AI-assisted
+        responses, a live team inbox, broadcasts, analytics, and a per-workspace
+        knowledge base. This policy explains what information the platform
+        processes to provide that service, and how it is handled.
       </p>
-      <h1 className="mt-3 text-3xl font-bold">Privacy Policy</h1>
-      <p className="mt-2 text-sm text-slate-600">Last updated: {updatedAt}</p>
 
-      <section className="mt-8 space-y-4 text-sm leading-6 text-slate-700">
-        <p>
-          WhatsApp Bot helps businesses manage WhatsApp customer conversations,
-          auto-replies, AI-assisted responses, contact lists, broadcasts, and
-          knowledge base content.
-        </p>
-        <p>
-          We collect account information, workspace settings, WhatsApp contact
-          details, conversation messages, delivery status events, and uploaded or
-          submitted knowledge base content needed to provide the service.
-        </p>
-        <p>
-          WhatsApp messages and contact data are used only to route conversations,
-          show inbox history, send replies requested by the business, manage
-          opt-in status, and improve support workflows for that workspace.
-        </p>
-        <p>
-          We do not sell personal data. Data may be processed by infrastructure
-          and service providers required to operate the product, including hosting,
-          database, authentication, WhatsApp Cloud API, and configured AI providers.
-        </p>
-        <p>
-          Workspace owners can request export or deletion of their workspace data
-          by contacting the service operator from the email used to administer the
+      <h2 className="pt-2 text-lg font-semibold text-slate-900">
+        Information processed
+      </h2>
+      <ul className="list-disc space-y-2 pl-5">
+        <li>
+          <strong>Business account information:</strong> workspace name, plan,
+          and settings configured by the business.
+        </li>
+        <li>
+          <strong>User/account information:</strong> email address, name, and
+          authentication data for people who sign in to manage a workspace.
+        </li>
+        <li>
+          <strong>WhatsApp contact identifiers:</strong> the phone numbers and
+          profile names of people who message a connected business, and their
+          opt-in/opt-out status.
+        </li>
+        <li>
+          <strong>WhatsApp messages:</strong> the content of messages sent to
+          and received from a connected business, and delivery/read status
+          events reported by WhatsApp.
+        </li>
+        <li>
+          <strong>AI conversation/context data:</strong> recent conversation
+          history and retrieved knowledge-base content, which may be sent to a
+          configured AI provider to generate a reply.
+        </li>
+        <li>
+          <strong>Knowledge-base content:</strong> PDF, Word, URL, or pasted
+          text a business uploads so the AI assistant can answer from it.
+        </li>
+        <li>
+          <strong>Technical/security logs:</strong> request metadata, error
+          logs, and webhook delivery records used to operate and secure the
+          service.
+        </li>
+        <li>
+          <strong>Authentication/session information:</strong> session cookies
+          and sign-in metadata used to keep a user signed in to their
           workspace.
-        </p>
-        <p>
-          For privacy requests, email{" "}
-          <a
-            className="font-medium text-emerald-700 underline"
-            href="mailto:singaporearun2003@gmail.com"
-          >
-            singaporearun2003@gmail.com
-          </a>
-          .
-        </p>
-      </section>
-    </main>
+        </li>
+      </ul>
+      <p>
+        We do not request or process information beyond what is listed above.
+        We do not sell personal data.
+      </p>
+
+      <h2 className="pt-2 text-lg font-semibold text-slate-900">
+        Purpose of processing
+      </h2>
+      <p>Information above is used to:</p>
+      <ul className="list-disc space-y-2 pl-5">
+        <li>provide WhatsApp messaging automation for a workspace;</li>
+        <li>route, display, and respond to customer inquiries in the inbox;</li>
+        <li>generate AI-assisted replies and ground them in a workspace&apos;s knowledge base;</li>
+        <li>authenticate users and administer workspace accounts and roles;</li>
+        <li>maintain security, detect abuse, and prevent duplicate/replayed messages; and</li>
+        <li>troubleshoot issues and improve the reliability of the service.</li>
+      </ul>
+
+      <h2 className="pt-2 text-lg font-semibold text-slate-900">
+        Third-party processors and providers
+      </h2>
+      <p>The platform relies on the following categories of external providers:</p>
+      <ul className="list-disc space-y-2 pl-5">
+        <li>
+          <strong>Meta / WhatsApp Business Platform:</strong> delivers inbound
+          messages to the platform and outbound replies to end users.
+        </li>
+        <li>
+          <strong>Supabase:</strong> hosts the application database,
+          authentication, and file storage.
+        </li>
+        <li>
+          <strong>Configured AI provider(s):</strong> a workspace&apos;s AI
+          replies are generated by whichever provider is configured for that
+          workspace &mdash; currently GLM (Z.ai), Google Gemini, or OpenRouter.
+          Only the provider actually selected (with automatic failover to a
+          secondary provider if the primary is unavailable) processes message
+          content necessary to generate a response; content is not sent to
+          every supported provider simultaneously.
+        </li>
+        <li>
+          <strong>Voyage AI:</strong> used only where a workspace enables
+          semantic knowledge-base search, to generate embeddings of uploaded
+          content. If not enabled, knowledge-base search falls back to
+          in-database full-text search and Voyage AI is not used.
+        </li>
+        <li>
+          <strong>Infrastructure/hosting providers:</strong> the application
+          runtime and container registry used to run and distribute the
+          service.
+        </li>
+      </ul>
+
+      <h2 className="pt-2 text-lg font-semibold text-slate-900">
+        Data retention
+      </h2>
+      <p>
+        Information is retained only for as long as needed to operate the
+        service for an active workspace, satisfy contractual or legal
+        obligations, and maintain security (for example, abuse prevention and
+        audit logs). When a workspace is deleted, its associated data is
+        deleted or anonymized as described in our{" "}
+        <a href="/data-deletion" className="font-medium text-emerald-700 underline">
+          Data Deletion
+        </a>{" "}
+        instructions, subject to any retention required by law or for
+        legitimate security purposes.
+      </p>
+
+      <h2 className="pt-2 text-lg font-semibold text-slate-900">
+        Data deletion
+      </h2>
+      <p>
+        See{" "}
+        <a href="/data-deletion" className="font-medium text-emerald-700 underline">
+          /data-deletion
+        </a>{" "}
+        for how to request deletion of workspace or account data.
+      </p>
+
+      <h2 className="pt-2 text-lg font-semibold text-slate-900">
+        Your rights
+      </h2>
+      <p>
+        You may request access to, correction of, or deletion of your
+        information by contacting{" "}
+        <a
+          className="font-medium text-emerald-700 underline"
+          href={`mailto:${SUPPORT_EMAIL}`}
+        >
+          {SUPPORT_EMAIL}
+        </a>
+        . We may need to verify your identity or authority over a workspace
+        before acting on a request.
+      </p>
+
+      <h2 className="pt-2 text-lg font-semibold text-slate-900">
+        Security
+      </h2>
+      <p>
+        We apply reasonable technical and organizational measures appropriate
+        to the data we process, including encryption of WhatsApp access
+        tokens at rest, signed and verified WhatsApp webhook delivery,
+        role-based access to workspace data, and access logging. No method of
+        transmission or storage is completely secure, and we do not claim
+        certification against any specific security standard.
+      </p>
+
+      <h2 className="pt-2 text-lg font-semibold text-slate-900">
+        Policy updates
+      </h2>
+      <p>
+        We may update this policy as the service changes. The date at the top
+        of this page reflects the most recent update.
+      </p>
+    </LegalPage>
   );
 }

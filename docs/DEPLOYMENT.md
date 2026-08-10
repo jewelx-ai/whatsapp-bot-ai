@@ -51,23 +51,37 @@ headroom without needing careful tuning. A 1GB instance is workable at low
 upload volume but carries real OOM risk under concurrent large-file
 ingestion — only choose it with memory monitoring/alerting in place.
 
-Open ports: **80 and 443 only**. The app's internal port (3000) should not
-be exposed publicly — nginx proxies to it over `127.0.0.1`. Restrict SSH
-(22) to known IPs where possible.
+Base OS: **Ubuntu LTS** (22.04 or 24.04).
+
+Open ports: **80 and 443 only**, publicly. The app's internal port (3000) is
+bound to `127.0.0.1` in `docker-compose.yml`, so it is not reachable from
+outside the host even if the firewall is misconfigured — nginx is the only
+public entry point and proxies to it over loopback. Restrict SSH (22) to
+known IPs where possible.
 
 1. Provision the instance, point DNS (`bot.jewelxtech.com` A/AAAA record) at
    its public IP.
 2. Install Docker Engine + the Compose plugin, nginx, and certbot.
-3. Create the deployment directory:
+3. Configure the firewall to allow only what's needed:
+   ```bash
+   sudo ufw default deny incoming
+   sudo ufw allow 80/tcp
+   sudo ufw allow 443/tcp
+   sudo ufw allow OpenSSH   # or a narrower rule scoped to known admin IPs
+   sudo ufw enable
+   ```
+4. Create the deployment directory:
    ```bash
    sudo mkdir -p /opt/whatsapp-bot
    sudo chown "$USER" /opt/whatsapp-bot
    ```
-4. Copy `docker-compose.yml` and `deploy/deploy.sh` from this repo into
-   `/opt/whatsapp-bot/` (the server does not need a git clone — only these
-   two files plus the env file below).
+5. Copy the following from this repo into `/opt/whatsapp-bot/` (the server
+   does not need a git clone — only these files plus the env file below):
+   - `docker-compose.yml`
+   - `deploy/deploy.sh`
+   - `deploy/broadcast-worker.sh` (see [Broadcast worker](#broadcast-worker-non-vercel-scheduler))
    ```bash
-   chmod +x /opt/whatsapp-bot/deploy.sh
+   chmod +x /opt/whatsapp-bot/deploy.sh /opt/whatsapp-bot/broadcast-worker.sh
    ```
 
 ## First deployment
@@ -100,6 +114,12 @@ be exposed publicly — nginx proxies to it over `127.0.0.1`. Restrict SSH
 5. Verify: `curl https://bot.jewelxtech.com/api/health` → `{"status":"UP"}`.
 6. Register `https://bot.jewelxtech.com/api/webhook` in the Meta app and
    subscribe to `messages`.
+7. Install the broadcast worker timer — see
+   [Broadcast worker](#broadcast-worker-non-vercel-scheduler) below.
+8. If submitting for Meta App Review, see
+   [META-APP-REVIEW.md](META-APP-REVIEW.md) for the public pages, reviewer
+   account, and demo-tenant setup this deployment needs to be ready for
+   review.
 
 ## Normal deployment flow
 
@@ -133,6 +153,11 @@ repository variable so it stays inert until a server exists:
 Names only — see `.env.local.example` in the repo root for the authoritative,
 grouped, commented list (Core/Next, Supabase, WhatsApp, AI providers,
 Knowledge base, Cron/admin). Never commit real values.
+
+For production, `NEXT_PUBLIC_APP_URL` should be set to
+`https://bot.jewelxtech.com`. `NEXT_PUBLIC_SUPPORT_EMAIL` is optional — set
+it to a dedicated support alias if you don't want the public privacy/terms/
+data-deletion pages to use the fallback address baked into `src/lib/site.ts`.
 
 ## DNS + SSL
 
@@ -175,21 +200,41 @@ IMAGE_TAG=<previous-git-sha> ./deploy.sh
 Find the previous SHA from the GHCR package's tag list or `git log` on
 `main`.
 
-## Broadcast worker (non-Vercel cron)
+## Broadcast worker (non-Vercel scheduler)
 
 `vercel.json`'s daily cron only applies on Vercel. For this Docker
-deployment, trigger the same endpoint from a host crontab (documentation
-only — no automation is built for this, per project scope):
+deployment, `deploy/broadcast-worker.sh` triggers the same endpoint
+(`POST /api/worker/broadcasts`) on a schedule via a systemd timer.
 
-```cron
-# Every 5 minutes; adjust to desired broadcast latency
-*/5 * * * * curl -s -X POST https://bot.jewelxtech.com/api/worker/broadcasts \
-  -H "Authorization: Bearer $CRON_SECRET" >> /var/log/whatsapp-bot-worker.log 2>&1
+The script reads `CRON_SECRET` from `.env.local` and passes it to `curl` via
+a temporary `--config` file rather than a command-line argument, so it never
+appears in `ps` output — unlike a raw `curl -H "Authorization: Bearer
+$CRON_SECRET"` crontab entry would.
+
+Install (as root, on the server):
+
+```bash
+sudo cp deploy/systemd/whatsapp-bot-broadcasts.service /etc/systemd/system/
+sudo cp deploy/systemd/whatsapp-bot-broadcasts.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now whatsapp-bot-broadcasts.timer
 ```
 
-Store `CRON_SECRET` for the cron job the same way it's stored in
-`/opt/whatsapp-bot/.env.local` (e.g. read it from that file in a small
-wrapper script rather than hardcoding it in the crontab).
+The timer defaults to running 2 minutes after boot and every 5 minutes
+after that (`OnUnitActiveSec=5min` in the `.timer` unit) — adjust to the
+desired broadcast latency.
+
+Verify:
+
+```bash
+systemctl status whatsapp-bot-broadcasts.timer
+sudo systemctl start whatsapp-bot-broadcasts.service   # run once on demand
+journalctl -u whatsapp-bot-broadcasts.service -n 20
+```
+
+A plain cron entry calling `/opt/whatsapp-bot/broadcast-worker.sh` on a
+schedule works identically if systemd timers aren't preferred — the script
+itself is what keeps the secret out of process listings, not the scheduler.
 
 ## Backup / state handling
 

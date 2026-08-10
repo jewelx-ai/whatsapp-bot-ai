@@ -1,0 +1,9 @@
+[Unit]
+Description=Trigger WhatsApp bot broadcast worker
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/whatsapp-bot
+ExecStart=/opt/whatsapp-bot/broadcast-worker.sh
