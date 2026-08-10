@@ -42,6 +42,8 @@ Documentation index for the WhatsApp automation SaaS built with **Next.js + Supa
 | [17-token-encryption.md](17-token-encryption.md) | WhatsApp token encryption, required env, migration, and rotation notes |
 | [18-plan-enforcement.md](18-plan-enforcement.md) | Operator-managed plan limits for AI, broadcasts, and knowledge ingestion |
 | [19-hardening-fixes.md](19-hardening-fixes.md) | Post-audit dependency, setup, proxy, URL ingestion, and webhook persistence fixes |
+| [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) | CI/CD & Docker deployment inspection report and risk register (unnumbered: cross-cutting workstream doc, not a single subsystem) |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Step-by-step self-hosted Docker deployment: CI/CD, GHCR, nginx, DNS/SSL, rollback (unnumbered, same reason) |
 
 ## Rule for this project
 

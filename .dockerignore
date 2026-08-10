@@ -1,7 +1,10 @@
 node_modules
 .next
 .git
+.github
 docs
+tests
+deploy
 *.md
 .env*
 !.env.local.example

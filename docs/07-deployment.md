@@ -50,7 +50,13 @@ Or export the two public values before `docker compose build`.
 
 After launch, place an HTTPS reverse proxy in front of port 3000. Rebuild after changing public variables; restart after changing runtime-only secrets.
 
-The Docker CLI was unavailable during the 2026-07-21 audit, so image build, non-root execution, networking, and signal behavior remain unverified.
+Image build, non-root execution, and health-check behavior are now verified
+(`docker build`, container boot, `GET /api/health`) and covered by CI on
+every push — see [DEPLOYMENT.md](DEPLOYMENT.md) for the full CI/CD +
+self-hosted deployment flow (GHCR, nginx reverse proxy, rollback), and
+[PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) for the underlying
+inspection report. Signal handling under real production load (SIGTERM
+during in-flight webhook processing) has not been separately load-tested.
 
 ## Option B — Vercel
 
