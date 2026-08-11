@@ -6,14 +6,13 @@ GHCR → a single Linux server. For the Vercel path, see
 supported. For what was inspected/found before writing this guide, see
 [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md).
 
-> **Status**: the CI pipeline (`.github/workflows/ci.yml`) is fully built and
-> verified (see [Verification](#verification)). The deploy pipeline
-> (`.github/workflows/deploy.yml`) and this guide's server-setup steps are
-> written and internally consistent, but **no production server exists yet**
-> — the SSH deploy step and live `bot.jewelxtech.com` health check have not
-> been exercised end-to-end. The `deploy` job is gated behind a
-> `DEPLOY_ENABLED` repository variable so it stays inert until a server is
-> provisioned (see [Enabling deploys](#enabling-deploys) below).
+> **Status**: production is live at `https://bot.jewelxtech.com` (EC2,
+> `ap-southeast-1`, HTTPS via Let's Encrypt). The CI pipeline
+> (`.github/workflows/ci.yml`) and the deploy pipeline
+> (`.github/workflows/deploy.yml`, gated behind the `DEPLOY_ENABLED`
+> repository variable — see [Enabling deploys](#enabling-deploys)) have both
+> been exercised end-to-end, including the SSH deploy step. The first real
+> tenant is onboarded and has completed a live WhatsApp round trip.
 
 ## Architecture
 
