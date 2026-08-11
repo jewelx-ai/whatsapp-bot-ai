@@ -3,8 +3,7 @@
 
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://bot.jewelxtech.com";
 
-// Falls back to the address already in use for privacy/terms/data-deletion
-// requests rather than inventing a new one; override in production via
-// NEXT_PUBLIC_SUPPORT_EMAIL if a dedicated support alias is set up.
+// Official JewelX support address for privacy/terms/data-deletion requests;
+// override per environment via NEXT_PUBLIC_SUPPORT_EMAIL if needed.
 export const SUPPORT_EMAIL =
-  process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "singaporearun2003@gmail.com";
+  process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "hr@jewelxtech.com";
